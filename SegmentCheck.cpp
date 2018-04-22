@@ -408,7 +408,7 @@ SegmentCheck::setFacesPath( const Point_2&                         startPt,
   Face_const_handle hStartFace = getFace( pl, startPt );
   Face_const_handle hEndFace   = getFace( pl, endPt   );
   if( hStartFace == hEndFace)
-    return;
+    return true;
 
   addStartPathToQueue( startPt, endPt, hStartFace, hEndFace,
                        queue, pointsMap, edgesMap );
@@ -416,13 +416,13 @@ SegmentCheck::setFacesPath( const Point_2&                         startPt,
   {
     PointNode* pointNode = *(queue.begin());
     if( pointNode->point == endPt )
-      return;
+      return true;
     pointNode->processed = true;
     this->addFacesToQueue( pointNode, endPt, hEndFace,
                            queue, pointsMap, edgesMap );
     queue.erase( pointNode );
   }
-  throw "no path found!";
+  return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -440,59 +440,63 @@ SegmentCheck::getSegment( Point_2 a, Point_2 b ) const
 }
 
 //-----------------------------------------------------------------------------
-/*
-vector<Point_2>
-SegmentCheck::reversedPath()
-{ //create path from BFS results
-    vector<Point_2> path;
-    PointNode *node = &(pointsMap[this->endPoint]);
-    while (node != nullptr)
+vector<Halfedge_const_handle>
+SegmentCheck::reversedPath( const Point_2& startPt, const Point_2& endPt )
+{
+  //create path from BFS results
+  vector<Halfedge_const_handle> CrossedHEdges;
+  PointNode* pCurr = &(pointsMap[endPt]);
+  while( pCurr != nullptr )
+  {
+    CrossedHEdges.push_back(pCurr->hedge);
+    PointNode* pPrev = pCurr->prev;
+    if(pPrev->prev == nullptr)
     {
-        path.push_back(node->point);
-        PointNode *prev = node->prev;
-        if(prev->prev == nullptr)
-        {
-            path.push_back(prev->point);
-            break;
-        }
-        PointNode *prevprev = prev->prev;
-        while(prevprev != nullptr)
-        {
-            if(CGAL::intersection(getSegment(prev->edge), getSegment(node->point, prevprev->point)))
-            {
-                bool segmentFine = true;
-                for(PointNode *temp:node->crossedSegments)
-                {
-                    if(!CGAL::intersection(getSegment(temp->edge), getSegment(node->point, prevprev->point)))
-                    {
-                        segmentFine = false;
-                        break;
-                    }
-                }
-                if(segmentFine)
-                    node->crossedSegments.push_back(prev);
-                else
-                    break;
-            } else
-                break;
-            prev = prevprev;
-            if(prev->prev == nullptr)
-            {
-                path.push_back(prev->point);
-                prev = prev->prev;
-                break;
-            }
-            prevprev = prev->prev;
-        }
-        node = prev;
+      //path.push_back(prev->point);
+      break;
     }
-    return path;
+    PointNode* pPrevPrev = pPrev->prev;
+    while(pPrevPrev != nullptr)
+    {
+      if( CGAL::intersection( getSegment( pPrev->hedge ),
+                              getSegment( pCurr->point, pPrevPrev->point ) ) )
+      {
+        bool segmentFine = true;
+        for( PointNode* temp : pCurr->crossedSegments )
+        {
+          if( !CGAL::intersection( getSegment( temp->hedge ),
+                                   getSegment( pCurr->point, pPrevPrev->point )))
+          {
+            segmentFine = false;
+            break;
+          }
+        }
+        if(segmentFine)
+          pCurr->crossedSegments.push_back(pPrev);
+        else
+          break;
+      }
+      else
+        break;
+      pPrev = pPrevPrev;
+      if( pPrev->prev == nullptr )
+      {
+        //path.push_back(pPrev->point);
+        pPrev = pPrev->prev;
+        break;
+      }
+      pPrevPrev = pPrev->prev;
+    } // end of (pPrevPrev != nullptr)
+    pCurr = pPrev;
+  }
+  return CrossedHEdges;
 }
-*/
+
 //-----------------------------------------------------------------------------
 bool
 SegmentCheck::isFree( const Point_2& startPt, const Point_2& endPt ) const
 {
+  cout << "Query (" << startPt << ") - (" << endPt << ")" << endl;
   //bfs maps:
   //use set because need to delete efficiently
   set<PointNode*, CmpfaceNodePtrs>      queue;
@@ -500,13 +504,21 @@ SegmentCheck::isFree( const Point_2& startPt, const Point_2& endPt ) const
   //use to improve finding all interesting point on edge
   map<Halfedge_const_handle, vector<Point_2>> edgesMap;
 
-  setFacesPath( startPt, endPt, queue, pointsMap, edgesMap );
-//  vector<Point_2> reversedPath = this->reversedPath();
-//  vector<Point_2> path;
-//  for(int i = static_cast<int>(reversedPath.size())-1; i >= 0; i--)
-//      path.push_back(Point_2(reversedPath[i]));
+  if( !setFacesPath( startPt, endPt, queue, pointsMap, edgesMap ) )
+    return false;
 
-  //return path;
+
+  vector<Halfedge_const_handle> CrossedHEdges = reversedPath(startPt, endPt);
+  if( 0 == CrossedHEdges.size() )
+    return true;
+  Segment_2 querySeg = getSegment( startPt, endPt );
+  for( auto iCurrHEdge : CrossedHedges )
+  {
+    FT x0 = iCurrHEdge->source()->point()->x();
+    FT y0 = iCurrHEdge->source()->point()->y();
+    FT x1 = iCurrHEdge->target()->point()->x();
+    FT y1 = iCurrHEdge->target()->point()->y();
+  }
   return true;
 }
 //-----------------------------------------------------------------------------
