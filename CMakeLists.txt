@@ -42,7 +42,7 @@ endif ()
 
 add_executable(QueryHandler QueryHandler.cpp NaiveQueryHandler.cpp
                NaiveQueryHandler.h IQueryHandler.h CGAL_defines.h
-               SegmentCheck.h SegmentCheck.cpp
+               SegmentCheck.h SegmentCheck.cpp DijkstraComputePath.cpp
                MyQueryHandler.cpp MyQueryHandler.h)
 add_executable(RodPathFinder RodPathFinder.cpp MyRodPathFinder.cpp MyRodPathFinder.h Path.cpp Path.h NaiveQueryHandler.cpp NaiveQueryHandler.h IQueryHandler.h CGAL_defines.h)
 add_to_cached_list(CGAL_EXECUTABLE_TARGETS QueryHandler)

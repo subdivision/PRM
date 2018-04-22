@@ -25,7 +25,7 @@ public:
     Point_2 point;
     PointNode* prev;
     Halfedge_const_handle hedge;
-    bool processed = false;
+    bool processed;
     vector<PointNode*> crossedSegments;
 };
 
@@ -47,8 +47,22 @@ class SegmentCheck
 private:
   static const int EDGE_DIVIDING_PARAM;
 
-  Polygon_set_2           _freeSpace;
-  Arrangement_2           _arr;
+  Polygon_set_2                     _freeSpace;
+  Arrangement_2                     _arr;
+  vector<Face_const_handle>         _freeFaces;
+  map<Face_const_handle, int>       _faceToIdx;
+  char*                             _pNeigMtrx;
+  Halfedge_const_handle*            _pNeigHEdges;
+  map<pair<int, int>, vector<int>>  _pathsBetweenFaces;
+
+  void initFreeFacesVec();
+  bool twoFacesHaveCommonEdge( const Face_const_handle& hFace1,
+                               const Face_const_handle& hFace2,
+                               Halfedge_const_handle&   hRes );
+  void buildNeigMatrices();
+  void retrieveHEdges(Face_const_handle              hStartFace,
+                      Face_const_handle              hEndFace,
+                      vector<Halfedge_const_handle>& crossedHEdges );
 
   void addFrame( const FT& rodLength );
 
@@ -60,11 +74,11 @@ private:
   Face_const_handle getFace( const Landmarks_pl& pl,
                              const Point_2&      p ) const;
 
-  void setFacesPath(const Point_2& startPt,
-                      const Point_2& endPt,
-                      set<PointNode*, CmpfaceNodePtrs>& queue,
-                      map<Point_2, PointNode>&          pointsMap,
-                      map<Halfedge_const_handle, vector<Point_2>>& edgesMap ) const;
+  bool setFacesPath( const Point_2& startPt,
+                     const Point_2& endPt,
+                     set<PointNode*, CmpfaceNodePtrs>& queue,
+                     map<Point_2, PointNode>&          pointsMap,
+                     map<Halfedge_const_handle, vector<Point_2>>& edgesMap ) const;
 
   vector<Point_2>
   getEdgePoints( Halfedge_const_handle hHedge,
@@ -94,23 +108,29 @@ private:
                      set<PointNode*, CmpfaceNodePtrs>&  queue,
                      map<Point_2, PointNode>&           pointsMap )const;
 
-  void addStartPathToQueue( const Point_2&                    startPt,
-                            const Point_2&                    endPt,
-                            Face_const_handle&                hStartFace,
-                            Face_const_handle&                hEndFace,
-                            set<PointNode*, CmpfaceNodePtrs>& queue,
-                            map<Point_2, PointNode>&          pointsMap,
-                            map<Halfedge_const_handle, vector<Point_2>>& edgesMap ) const;
+  void
+  addStartPathToQueue( const Point_2&                               startPt,
+                       const Point_2&                               endPt,
+                       Face_const_handle&                           hStartFace,
+                       Face_const_handle&                           hEndFace,
+                       set<PointNode*, CmpfaceNodePtrs>&            queue,
+                       map<Point_2, PointNode>&                     pointsMap,
+                       map<Halfedge_const_handle, vector<Point_2>>& edgesMap )
+                                                                         const;
 
   FT pointsDistance(Point_2 a, Point_2 b) const;
   Segment_2 getSegment(Halfedge_const_handle edge) const;
   Segment_2 getSegment(Point_2 a, Point_2 b) const;
 
-  //vector<Point_2> reversedPath(Arrangement_2& arr, Kernel& ker);
+  void reversedPath( const Point_2&                 startPt,
+                     const Point_2&                 endPt,
+                     map<Point_2, PointNode>&       pointsMap,
+                     vector<Halfedge_const_handle>& crossedHEdges ) const;
 
 public:
-    SegmentCheck( const FT& rodLength, const vector<Polygon_2>& obstacles );
-    bool isFree( const Point_2& startPt, const Point_2& endPt ) const;
+  SegmentCheck( const FT& rodLength, const vector<Polygon_2>& obstacles );
+  ~SegmentCheck();
+  bool isFree( const Point_2& startPt, const Point_2& endPt );
 };
 
 #endif //PATHFINDER_PATHPLANNER_H

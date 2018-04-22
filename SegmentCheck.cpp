@@ -1,14 +1,19 @@
 #include "SegmentCheck.h"
 
-const int SegmentCheck::EDGE_DIVIDING_PARAM = 5;
+const int SegmentCheck::EDGE_DIVIDING_PARAM = 2;
 void print_arrangement( const Arrangement_2& arr );
+void print_segment( const Point_2& p1, const Point_2& p2 );
 
 //=============================================================================
 PointNode::PointNode( FT                     distance,
                       Point_2                point,
                       PointNode*             prev,
                       Halfedge_const_handle  hHedge ):
-distance(distance), point(point), prev(prev), hedge(hHedge)
+distance(distance),
+point(point),
+prev(prev),
+hedge(hHedge),
+processed(false)
 {}
 
 //=============================================================================
@@ -30,6 +35,12 @@ polygon_split_observer::after_split_face( Face_handle f1, Face_handle f2, bool )
 }
 
 //=============================================================================
+SegmentCheck::~SegmentCheck()
+{
+  delete[] _pNeigHEdges;
+  delete[] _pNeigMtrx;
+}
+//-----------------------------------------------------------------------------
 SegmentCheck::SegmentCheck( const FT& rodLength,
                             const vector<Polygon_2>& obstacles ):
 _freeSpace()
@@ -51,8 +62,125 @@ _freeSpace()
   Kernel* ker = &traits;
   this->verticalDecomposition( *ker );
   observer.detach();
+  buildNeigMatrices();
+}
 
-  print_arrangement(_arr);
+//-----------------------------------------------------------------------------
+void
+SegmentCheck::initFreeFacesVec()
+{
+  Arr_FaceCIter iFace = _arr.faces_begin();
+  int nIdx = 0;
+  for( ; iFace != _arr.faces_end(); ++iFace )
+  {
+    if( (*iFace).is_unbounded() )
+      continue;
+    if( !(*iFace).contained() )
+      continue;
+    Face_const_handle hFace = iFace;
+    _freeFaces.push_back( hFace );
+    _faceToIdx[hFace] = nIdx;
+    ++nIdx;
+  }
+}
+
+//-----------------------------------------------------------------------------
+bool
+SegmentCheck::twoFacesHaveCommonEdge( const Face_const_handle& hFace1,
+                                      const Face_const_handle& hFace2,
+                                      Halfedge_const_handle&   hRes )
+{
+  ccb_haledge_circulator circ1 = hFace1->outer_ccb();
+  ccb_haledge_circulator circ2 = hFace2->outer_ccb();
+  ccb_haledge_circulator curr1 = circ1;
+  do
+  {
+    Halfedge_const_handle hHe1 = curr1;
+    ccb_haledge_circulator curr2 = circ2;
+    do
+    {
+      Halfedge_const_handle hHe2 = curr2;
+      Point_2 p1s = hHe1->source()->point();
+      Point_2 p2t = hHe2->target()->point();
+      Point_2 p1t = hHe1->target()->point();
+      Point_2 p2s = hHe2->source()->point();
+
+      if( p1s == p2t && p1t == p2s && p1s[0] == p1t[0] )
+      {
+        hRes = hHe1;
+        return true;
+      }
+    }while( ++curr2 != circ2 );
+  }while( ++curr1 != circ1 );
+  return false;
+}
+//-----------------------------------------------------------------------------
+void
+SegmentCheck::buildNeigMatrices()
+{
+  initFreeFacesVec();
+  int i = 0, j = 0;
+  int nMtrxSize = _freeFaces.size();
+  _pNeigMtrx = new char[nMtrxSize * nMtrxSize];
+  _pNeigHEdges = new Halfedge_const_handle[nMtrxSize * nMtrxSize];
+  vector<Face_const_handle>::const_iterator iFace = _freeFaces.begin();
+  for( ; iFace != _freeFaces.end(); ++iFace, ++i )
+  {
+    vector<Face_const_handle>::const_iterator iOtherFace = iFace;
+    for( ++iOtherFace, j = i+1; iOtherFace != _freeFaces.end(); ++iOtherFace, ++j )
+    {
+      Halfedge_const_handle hCmnHEdge;
+      bool bHaveCommon = twoFacesHaveCommonEdge( *iFace, *iOtherFace, hCmnHEdge);
+      _pNeigMtrx[i*nMtrxSize + j] = bHaveCommon;
+      _pNeigMtrx[j*nMtrxSize + i] = bHaveCommon;
+      _pNeigHEdges[i*nMtrxSize + j] = hCmnHEdge;
+      _pNeigHEdges[j*nMtrxSize + i] = hCmnHEdge;
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+
+extern int dijkstra_compute_path(char*, int, int, int, vector<int>& );
+
+void
+SegmentCheck::retrieveHEdges(Face_const_handle              hStartFace,
+                             Face_const_handle              hEndFace,
+                             vector<Halfedge_const_handle>& crossedHEdges)
+{
+  int nMtrxSize = _freeFaces.size();
+  int i = _faceToIdx[hStartFace];
+  int j = _faceToIdx[hEndFace];
+  int s = i < j ? i : j;
+  int d = i > j ? i : j;
+
+  if( _pNeigMtrx[ i * nMtrxSize + j ] )
+  {
+    // Direct neighbors
+    crossedHEdges.push_back( _pNeigHEdges[i * nMtrxSize + j] );
+    return;
+  }
+
+  auto iIdxPath = _pathsBetweenFaces.find(pair<int, int>(s,d));
+  vector<int> CurrIdxPath;
+  if( iIdxPath == _pathsBetweenFaces.end() )
+  {
+    int nCurrLen = dijkstra_compute_path( _pNeigMtrx, nMtrxSize,
+                                          s, d, CurrIdxPath );
+    _pathsBetweenFaces[pair<int, int>(s,d)] = CurrIdxPath;
+  }
+  else
+  {
+    CurrIdxPath = iIdxPath->second;
+  }
+
+  vector<int>::const_iterator iPrevIdx = CurrIdxPath.begin();
+  vector<int>::const_iterator iCurrIdx = CurrIdxPath.begin();
+  for( ++iCurrIdx; iCurrIdx != CurrIdxPath.end(); ++iCurrIdx, ++iPrevIdx )
+  {
+    Halfedge_const_handle hHEdge = _pNeigHEdges[*iPrevIdx * nMtrxSize + *iCurrIdx];
+    crossedHEdges.push_back(hHEdge);
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -266,7 +394,10 @@ SegmentCheck::addPointToQueue( PointNode*                        pointNode,
                         + pointsDistance(pointNode->point, tempPoint);
       pointsMap[tempPoint] = PointNode(tempDistance, tempPoint,
                                        pointNode, tempEdge);
-      queue.insert(&(pointsMap[tempPoint]));
+      cout << "addPointToQueue " << tempPoint << "-> ("
+           << tempEdge->source()->point() << ") - ("
+           << tempEdge->target()->point() << ")" << endl;
+       queue.insert(&(pointsMap[tempPoint]));
     }
 }
 
@@ -299,19 +430,20 @@ SegmentCheck::tryToImprove( PointNode*                         pointNode,
                             set<PointNode*, CmpfaceNodePtrs>&  queue,
                             map<Point_2, PointNode>&           pointsMap )const
 {
-    PointNode* temp = &(pointsMap[tempPoint]);
-    if(temp->processed)
-        return;
-    FT tempDistance = pointNode->distance
-                      + pointsDistance(pointNode->point, tempPoint);
-    if(tempDistance < temp->distance)
-    {
-        queue.erase(temp); //remove from set beacuse it's in wrong position
-        temp = &(pointsMap[tempPoint]);
-        temp->distance = tempDistance;
-        temp->prev = pointNode;
-        queue.insert(temp); //insert in the right position
-    }
+  PointNode* temp = &(pointsMap[tempPoint]);
+  if(temp->processed)
+      return;
+  FT tempDistance = pointNode->distance
+                    + pointsDistance(pointNode->point, tempPoint);
+  if(tempDistance < temp->distance)
+  {
+    cout << "Improving to" << tempPoint << endl;
+    queue.erase(temp); //remove from set beacuse it's in wrong position
+    temp = &(pointsMap[tempPoint]);
+    temp->distance = tempDistance;
+    temp->prev = pointNode;
+    queue.insert(temp); //insert in the right position
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -394,7 +526,7 @@ SegmentCheck::addStartPathToQueue( const Point_2&                    startPt,
 
 //-----------------------------------------------------------------------------
 // run BFS from start_face to end_face
-void
+bool
 SegmentCheck::setFacesPath( const Point_2&                         startPt,
                             const Point_2&                         endPt,
                             set<PointNode*, CmpfaceNodePtrs>&      queue,
@@ -440,16 +572,21 @@ SegmentCheck::getSegment( Point_2 a, Point_2 b ) const
 }
 
 //-----------------------------------------------------------------------------
-vector<Halfedge_const_handle>
-SegmentCheck::reversedPath( const Point_2& startPt, const Point_2& endPt )
+void
+SegmentCheck::reversedPath( const Point_2&                 startPt,
+                            const Point_2&                 endPt,
+                            map<Point_2, PointNode>&       pointsMap,
+                            vector<Halfedge_const_handle>& crossedHEdges ) const
 {
   //create path from BFS results
-  vector<Halfedge_const_handle> CrossedHEdges;
   PointNode* pCurr = &(pointsMap[endPt]);
   while( pCurr != nullptr )
   {
-    CrossedHEdges.push_back(pCurr->hedge);
+    //cout << "Hedge at 0x" << static_cast<long> (pCurr->hedge) << endl;
+    //crossedHEdges.push_back(pCurr->hedge);
     PointNode* pPrev = pCurr->prev;
+    crossedHEdges.push_back(pPrev->hedge);
+
     if(pPrev->prev == nullptr)
     {
       //path.push_back(prev->point);
@@ -489,37 +626,92 @@ SegmentCheck::reversedPath( const Point_2& startPt, const Point_2& endPt )
     } // end of (pPrevPrev != nullptr)
     pCurr = pPrev;
   }
-  return CrossedHEdges;
 }
 
 //-----------------------------------------------------------------------------
 bool
-SegmentCheck::isFree( const Point_2& startPt, const Point_2& endPt ) const
+SegmentCheck::isFree( const Point_2& startPt, const Point_2& endPt )
 {
-  cout << "Query (" << startPt << ") - (" << endPt << ")" << endl;
+try{
+  cout << "--------------------------" << endl;
+  print_segment(startPt, endPt);
   //bfs maps:
   //use set because need to delete efficiently
-  set<PointNode*, CmpfaceNodePtrs>      queue;
-  map<Point_2, PointNode>               pointsMap;
-  //use to improve finding all interesting point on edge
-  map<Halfedge_const_handle, vector<Point_2>> edgesMap;
+//  set<PointNode*, CmpfaceNodePtrs>      queue;
+//  map<Point_2, PointNode>               pointsMap;
+//  //use to improve finding all interesting point on edge
+//  map<Halfedge_const_handle, vector<Point_2>> edgesMap;
+//
+//  if( !setFacesPath( startPt, endPt, queue, pointsMap, edgesMap ) )
+//    return false;
+//
+//
+//  vector<Halfedge_const_handle> CrossedHEdges;
+//  reversedPath( startPt, endPt, pointsMap, CrossedHEdges);
 
-  if( !setFacesPath( startPt, endPt, queue, pointsMap, edgesMap ) )
-    return false;
+  Landmarks_pl pl( _arr );
 
-
-  vector<Halfedge_const_handle> CrossedHEdges = reversedPath(startPt, endPt);
-  if( 0 == CrossedHEdges.size() )
-    return true;
-  Segment_2 querySeg = getSegment( startPt, endPt );
-  for( auto iCurrHEdge : CrossedHedges )
+  //start and end faces:
+  Face_const_handle hStartFace = getFace( pl, startPt );
+  Face_const_handle hEndFace   = getFace( pl, endPt   );
+  if( hStartFace == hEndFace)
   {
-    FT x0 = iCurrHEdge->source()->point()->x();
-    FT y0 = iCurrHEdge->source()->point()->y();
-    FT x1 = iCurrHEdge->target()->point()->x();
-    FT y1 = iCurrHEdge->target()->point()->y();
+    cout << "Same face. True." << endl;
+    return true;
   }
-  return true;
+
+  vector<Halfedge_const_handle> CrossedHEdges;
+  retrieveHEdges(hStartFace, hEndFace, CrossedHEdges);
+
+  if( 0 == CrossedHEdges.size() )
+  {
+    cout << "No Hedges crossed. But not same face? False" << endl;
+    return false;
+  }
+
+  bool bVertQuery = startPt.x() == endPt.x();
+  FT k = 0;
+  if( !bVertQuery )
+    k = ( startPt.y() - endPt.y() ) / ( startPt.x() - endPt.x() );
+  bool bResult = true;
+  cout << "CrossedHEdges.size() = " <<  CrossedHEdges.size() << endl;
+  for( Halfedge_const_handle iCurrHEdge : CrossedHEdges)
+  {
+    cout << "Testing HEdge ";
+    print_segment( iCurrHEdge->source()->point(), iCurrHEdge->target()->point() );
+    //if( !bResult )
+    //  break;
+    FT x0 = iCurrHEdge->source()->point().x();
+    FT y0 = iCurrHEdge->source()->point().y();
+    FT x1 = iCurrHEdge->target()->point().x();
+    FT y1 = iCurrHEdge->target()->point().y();
+    FT maxy = y0 > y1 ? y0 : y1;
+    FT miny = y0 < y1 ? y0 : y1;
+    if( x0 != x1 )
+    {
+      cout << "Not vertical hedge" << endl;
+    }
+    else
+    {
+      if( bVertQuery )
+      {
+        bResult = x0 == startPt.x();
+      }
+      else
+      {
+        FT yInx = k * (x0 - endPt.x()) + endPt.y();
+        bResult = (miny <= yInx && yInx <= maxy);
+      }
+    }
+  }  
+  cout << "bResult = " << ( bResult ? "True" : "False" ) << endl;
+  return bResult;
+}
+catch(const char* pExcText)
+{
+  cout << pExcText << " False." << endl;
+  return false;
+}
 }
 //-----------------------------------------------------------------------------
 void SegmentCheck::addFrame( const FT& rodLength )
@@ -614,6 +806,33 @@ void print_arrangement( const Arrangement_2& arr )
       continue;
     print_arr_face( iFace );
   }
+}
+
+void print_segment( const Segment_2& s )
+{
+  const Point_2& p1 = s.source();
+  const Point_2& p2 = s.target();
+  double x1 = CGAL::to_double( p1[0] );
+  double y1 = CGAL::to_double( p1[1] );
+  double x2 = CGAL::to_double( p2[0] );
+  double y2 = CGAL::to_double( p2[1] );
+  cout << "[" << x1 << ", " << y1 << " - " << x2 << ", " << y2 << "]" << endl;
+}
+
+void print_segment( const Point_2& p1, const Point_2& p2 )
+{
+  double x1 = CGAL::to_double( p1[0] );
+  double y1 = CGAL::to_double( p1[1] );
+  double x2 = CGAL::to_double( p2[0] );
+  double y2 = CGAL::to_double( p2[1] );
+  cout << "[" << x1 << ", " << y1 << " - " << x2 << ", " << y2 << "]" << endl;
+}
+
+void print_point( const Point_2& p)
+{
+  double x1 = CGAL::to_double( p[0] );
+  double y1 = CGAL::to_double( p[1] );
+  cout << "(" << x1 << ", " << y1 << ")" << endl;
 }
 
 
