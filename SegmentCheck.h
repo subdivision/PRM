@@ -45,22 +45,17 @@ class polygon_split_observer : public CGAL::Arr_observer<Arrangement_2>
 class SegmentCheck
 {
 private:
-    static const int EDGE_DIVIDING_PARAM;
+  static const int EDGE_DIVIDING_PARAM;
 
-    Polygon_set_2           _freeSpace;
-    Arrangement_2           _arr;
-    Polygon_set_2::Traits_2 _traits;
-    Kernel*                 _pKer;
+  Polygon_set_2           _freeSpace;
+  Arrangement_2           _arr;
 
+  void addFrame( const FT& rodLength );
 
-    void addFrame( const FT& rodLength );
-
-    void verticalDecomposition( Arrangement_2& arr,
-                                Kernel&        ker );
-    void addVerticalSegment( Arrangement_2&    arr,
-                             Vertex_handle     v,
-                             CGAL::Object      obj,
-                             Kernel&           ker );
+  void verticalDecomposition( Kernel&        ker );
+  void addVerticalSegment( Vertex_handle     v,
+                           CGAL::Object      obj,
+                           Kernel&           ker );
 
   Face_const_handle getFace( const Landmarks_pl& pl,
                              const Point_2&      p ) const;

@@ -1,6 +1,7 @@
 #include "SegmentCheck.h"
 
 const int SegmentCheck::EDGE_DIVIDING_PARAM = 5;
+void print_arrangement( const Arrangement_2& arr );
 
 //=============================================================================
 PointNode::PointNode( FT                     distance,
@@ -31,7 +32,7 @@ polygon_split_observer::after_split_face( Face_handle f1, Face_handle f2, bool )
 //=============================================================================
 SegmentCheck::SegmentCheck( const FT& rodLength,
                             const vector<Polygon_2>& obstacles ):
-_traits()
+_freeSpace()
 {
   _freeSpace.join( obstacles.begin(), obstacles.end() );
 
@@ -40,21 +41,23 @@ _traits()
 
   //set the free space as arrangment
   _arr = _freeSpace.arrangement();
+
   addFrame( rodLength );
 
   //ensure that when face split two side safe their property (inside/outside)
+  Polygon_set_2::Traits_2 traits;
   polygon_split_observer observer;
-  observer.attach( _arr );
-  _pKer = &_traits;
-  this->verticalDecomposition( _arr, *_pKer);
+  observer.attach(_arr);
+  Kernel* ker = &traits;
+  this->verticalDecomposition( *ker );
   observer.detach();
 
+  print_arrangement(_arr);
 }
 
 //-----------------------------------------------------------------------------
 void
-SegmentCheck::addVerticalSegment( Arrangement_2& arr,
-                                  Vertex_handle  v,
+SegmentCheck::addVerticalSegment( Vertex_handle  v,
                                   CGAL::Object   obj,
                                   Kernel&        ker )
 {
@@ -68,13 +71,15 @@ SegmentCheck::addVerticalSegment( Arrangement_2& arr,
   {
     // The given feature is a vertex.
     seg = X_monotone_curve_2(v->point(), vh->point());
-    v2 = arr.non_const_handle(vh);
+    v2 = _arr.non_const_handle(vh);
   }
   else if( CGAL::assign(hh, obj) )
   {
     // The given feature is a halfedge.
     if (hh->is_fictitious()) //We ignore fictitious halfedges.
-        return;
+    {
+      return;
+    }
 
     // Check whether v lies in the interior of the x-range of the edge (in
     // which case this edge should be split).
@@ -84,7 +89,7 @@ SegmentCheck::addVerticalSegment( Arrangement_2& arr,
         // In case the target of the edge already has the same x-coordinate as
         // the vertex v, just connect these two vertices.
         seg = X_monotone_curve_2(v->point(), hh->target()->point());
-        v2 = arr.non_const_handle(hh->target());
+        v2 = _arr.non_const_handle(hh->target());
     }
     else
     {
@@ -96,10 +101,10 @@ SegmentCheck::addVerticalSegment( Arrangement_2& arr,
       Point_2  point;
       CGAL::assign(point, ker.intersect_2_object()(supp_line, vert_line));
       seg = X_monotone_curve_2(v->point(), point);
-      arr.split_edge(arr.non_const_handle(hh),
+      _arr.split_edge(_arr.non_const_handle(hh),
                      X_monotone_curve_2(hh->source()->point(), point),
                      X_monotone_curve_2(point, hh->target()->point()));
-      v2 = arr.non_const_handle(hh->target());
+      v2 = _arr.non_const_handle(hh->target());
     }
   }
   else
@@ -109,20 +114,19 @@ SegmentCheck::addVerticalSegment( Arrangement_2& arr,
   }
 
     // Add the vertical segment to the arrangement using its two end vertices.
-    arr.insert_at_vertices(seg, v, v2);
+  _arr.insert_at_vertices(seg, v, v2);
 }
 
 //-----------------------------------------------------------------------------
 void
-SegmentCheck::verticalDecomposition( Arrangement_2& arr,
-                                     Kernel&        ker )
+SegmentCheck::verticalDecomposition( Kernel& ker )
 {
   typedef pair<Vertex_const_handle, pair<CGAL::Object, CGAL::Object>> Vd_entry;
 
   // For each vertex in the arrangment, locate the feature that lies
   // directly below it and the feature that lies directly above it.
   list<Vd_entry>   vd_list;
-  CGAL::decompose(arr, back_inserter(vd_list));
+  CGAL::decompose(_arr, back_inserter(vd_list));
 
   // Go over the vertices (given in ascending lexicographical xy-order),
   // and add segements to the feautres below and above it.
@@ -137,11 +141,11 @@ SegmentCheck::verticalDecomposition( Arrangement_2& arr,
         !CGAL::assign( v, prev->second.second  ) ||
         !equal( v->point(), it->first->point() )   )
     {
-      addVerticalSegment(arr, arr.non_const_handle(it->first),
+      addVerticalSegment( _arr.non_const_handle(it->first),
                          it->second.first, ker);
     }
     // Add a vertical segment to the feature above the vertex.
-    addVerticalSegment( arr, arr.non_const_handle(it->first),
+    addVerticalSegment( _arr.non_const_handle(it->first),
                         it->second.second, ker);
     prev = it;
   }
@@ -527,11 +531,11 @@ void SegmentCheck::addFrame( const FT& rodLength )
     if( iVrtx->point().y() > mostUp )
       mostUp = iVrtx->point().y();
   }
+
   Point_2     upperLeft(  mostLeft  - d, mostUp   + d ),
               upperRight( mostRight + d, mostUp   + d ),
               lowerRight( mostRight + d, mostDown - d ),
               lowerLeft(  mostLeft  - d, mostDown - d );
-
   Segment_2   upperBound(upperLeft, upperRight),
               rightBound(upperRight, lowerRight),
               lowerBound(lowerRight, lowerLeft),
@@ -540,11 +544,64 @@ void SegmentCheck::addFrame( const FT& rodLength )
   Halfedge_handle tempEdge = _arr.insert_in_face_interior(
                                            upperBound, _arr.unbounded_face());
   Vertex_handle startVertex = tempEdge->source();
-  tempEdge = _arr.insert_from_left_vertex(rightBound, tempEdge->target());
+  tempEdge = _arr.insert_from_right_vertex(rightBound, tempEdge->target());
   tempEdge = _arr.insert_from_right_vertex(lowerBound, tempEdge->target());
   tempEdge = _arr.insert_at_vertices(leftBound, tempEdge->target(), startVertex);
-
   tempEdge->twin()->face()->set_contained(true);
   _arr.unbounded_face()->set_contained(false);
 }
 //============================== END OF FILE ==================================
+// Debuf stuff. 
+//----------------------------------------------------------------------------
+//
+// Iterating through a DCEL face boundary
+void print_ccb( ccb_haledge_circulator circ )
+{
+  ccb_haledge_circulator curr = circ;
+  int k = 1;
+  do{
+    ++k;
+  }while(++curr != circ);
+  cout << k << " ";
+  const Point_2& pt = curr->source()->point();
+  cout << CGAL::to_double(pt[0]) << " " 
+       << CGAL::to_double(pt[1]) << " ";
+  do {
+    const Point_2& pt = curr->target()->point();
+    cout << CGAL::to_double(pt[0]) << " " 
+         << CGAL::to_double(pt[1]) << " ";
+  } while (++curr != circ);
+  std::cout << std::endl;
+}
+
+
+void print_arr_face(Face_const_handle f)
+{
+  // Print the outer boundary.
+  if (f->is_unbounded())
+    cout << "Unbounded face. " << std::endl;
+  else {
+    std::cout << "Outer boundary: ";
+    print_ccb (f->outer_ccb());
+  }
+  // Print the boundary of each of the holes.
+  Arrangement_2::Hole_const_iterator hi;
+  int index = 1;
+  for (hi = f->holes_begin(); hi != f->holes_end(); ++hi, ++index) {
+    std::cout << " Hole #" << index << ": ";
+    print_ccb (*hi);
+  }
+}
+
+void print_arrangement( const Arrangement_2& arr )
+{
+  Arrangement_2::Face_const_iterator iFace = arr.faces_begin();
+  for( ; iFace != arr.faces_end(); ++iFace )
+  {
+    if ((*iFace).is_unbounded())
+      continue;
+    print_arr_face( iFace );
+  }
+}
+
+
