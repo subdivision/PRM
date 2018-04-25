@@ -1,5 +1,5 @@
-#ifndef PATHFINDER_PATHPLANNER_H
-#define PATHFINDER_PATHPLANNER_H
+#ifndef SEGEMENT_CHECK_H
+#define SEGEMENT_CHECK_H
 
 #include <vector>
 #include <list>
@@ -12,30 +12,6 @@
 using namespace std;
 
 //=============================================================================
-class PointNode
-{
-public:
-    explicit PointNode( FT                    distance,
-                        Point_2               point,
-                        PointNode*            prev,
-                        Halfedge_const_handle edge );
-    PointNode() = default;
-
-    FT distance;
-    Point_2 point;
-    PointNode* prev;
-    Halfedge_const_handle hedge;
-    bool processed;
-    vector<PointNode*> crossedSegments;
-};
-
-//=============================================================================
-struct CmpfaceNodePtrs
-{
-    bool operator()(const PointNode* lhs, const PointNode* rhs) const;
-};
-
-//=============================================================================
 class polygon_split_observer : public CGAL::Arr_observer<Arrangement_2>
 {
     void after_split_face(Face_handle f1, Face_handle f2, bool) override;
@@ -45,92 +21,40 @@ class polygon_split_observer : public CGAL::Arr_observer<Arrangement_2>
 class SegmentCheck
 {
 private:
-  static const int EDGE_DIVIDING_PARAM;
 
+  FT                                _rodLength;
   Polygon_set_2                     _freeSpace;
   Arrangement_2                     _arr;
-  vector<Face_const_handle>         _freeFaces;
-  map<Face_const_handle, int>       _faceToIdx;
-  char*                             _pNeigMtrx;
-  Halfedge_const_handle*            _pNeigHEdges;
-  map<pair<int, int>, vector<int>>  _pathsBetweenFaces;
-
-  void initFreeFacesVec();
-  bool twoFacesHaveCommonEdge( const Face_const_handle& hFace1,
-                               const Face_const_handle& hFace2,
-                               Halfedge_const_handle&   hRes );
-  void buildNeigMatrices();
-  void retrieveHEdges(Face_const_handle              hStartFace,
-                      Face_const_handle              hEndFace,
-                      vector<Halfedge_const_handle>& crossedHEdges );
-
-  void addFrame( const FT& rodLength );
-
   void verticalDecomposition( Kernel&        ker );
   void addVerticalSegment( Vertex_handle     v,
                            CGAL::Object      obj,
                            Kernel&           ker );
 
-  Face_const_handle getFace( const Landmarks_pl& pl,
-                             const Point_2&      p ) const;
-
-  bool setFacesPath( const Point_2& startPt,
-                     const Point_2& endPt,
-                     set<PointNode*, CmpfaceNodePtrs>& queue,
-                     map<Point_2, PointNode>&          pointsMap,
-                     map<Halfedge_const_handle, vector<Point_2>>& edgesMap ) const;
-
-  vector<Point_2>
-  getEdgePoints( Halfedge_const_handle hHedge,
-                 map<Halfedge_const_handle, vector<Point_2>>& edgesMap ) const;
-
-  void addFacesToQueue( PointNode*                        pPointNode,
-                        const Point_2&                    endPt,
-                        Face_const_handle                 hEndFace,
-                        set<PointNode*, CmpfaceNodePtrs>& queue,
-                        map<Point_2, PointNode>&          pointsMap,
-                        map<Halfedge_const_handle, vector<Point_2>>& edgesMap) const;
-
-  void addFaceToQueue( PointNode*                        pPointNode,
-                       Face_const_handle                 hFace,
-                       set<PointNode*, CmpfaceNodePtrs>& queue,
-                       map<Point_2, PointNode>&          pointsMap,
-                       map<Halfedge_const_handle, vector<Point_2>>& edgesMap ) const;
-
-  void addPointToQueue( PointNode*                        pointNode,
-                        Point_2                           tempPoint,
-                        Halfedge_const_handle             tempEdge,
-                        set<PointNode*, CmpfaceNodePtrs>& queue,
-                        map<Point_2, PointNode>&          pointsMap ) const;
-
-  void tryToImprove( PointNode*                         pointNode,
-                     Point_2                            tempPoint,
-                     set<PointNode*, CmpfaceNodePtrs>&  queue,
-                     map<Point_2, PointNode>&           pointsMap )const;
-
-  void
-  addStartPathToQueue( const Point_2&                               startPt,
-                       const Point_2&                               endPt,
-                       Face_const_handle&                           hStartFace,
-                       Face_const_handle&                           hEndFace,
-                       set<PointNode*, CmpfaceNodePtrs>&            queue,
-                       map<Point_2, PointNode>&                     pointsMap,
-                       map<Halfedge_const_handle, vector<Point_2>>& edgesMap )
-                                                                         const;
+  //Face_const_handle getFace( const Landmarks_pl& pl,
+  //                           const Point_2&      p ) const;
 
   FT pointsDistance(Point_2 a, Point_2 b) const;
   Segment_2 getSegment(Halfedge_const_handle edge) const;
   Segment_2 getSegment(Point_2 a, Point_2 b) const;
 
-  void reversedPath( const Point_2&                 startPt,
-                     const Point_2&                 endPt,
-                     map<Point_2, PointNode>&       pointsMap,
-                     vector<Halfedge_const_handle>& crossedHEdges ) const;
+  Halfedge_const_handle
+  findNextHEdge( Face_const_handle&           hCurrFace,
+                 const Point_2&               endPt,
+                 const Segment_2&             querySegment,
+                 bool&                        bDone,
+                 bool&                        bResult,
+                 const Halfedge_const_handle* pAnchorHEdge );
+
+  Face_const_handle chooseFace( Halfedge_const_handle hHEdge,
+                                const Point_2&        endPt );
+  Face_const_handle chooseFace( Vertex_const_handle hVrtx,
+                                const Vector_2&     direction );
+
+  void addFrame( const FT& rodLength );
 
 public:
   SegmentCheck( const FT& rodLength, const vector<Polygon_2>& obstacles );
-  ~SegmentCheck();
-  bool isFree( const Point_2& startPt, const Point_2& endPt );
+  bool isFree( const Point_2& startPt, const Vector_2& direction ) ;
 };
 
-#endif //PATHFINDER_PATHPLANNER_H
+#endif 

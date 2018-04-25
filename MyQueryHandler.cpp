@@ -19,7 +19,6 @@ MyQueryHandler::_isLegalConfiguration( const Point_2&  point,
                                        const Vector_2& direction,
                                        const double    rotation )
 {
-  Point_2 endPt = point + (direction * _rodLength);
-  return _verifier.isFree( point, endPt );
+  return _verifier.isFree( point, direction );
 }
 //============================= END OF FILE ===================================
