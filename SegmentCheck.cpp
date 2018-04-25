@@ -229,11 +229,32 @@ SegmentCheck::findNextHEdge( Face_const_handle&           hCurrFace,
   ccb_haledge_circulator ciFirstHEdge = hCurrFace->outer_ccb();
   ccb_haledge_circulator ciCurrHedge = ciFirstHEdge;
   Halfedge_const_handle hResult;
-  cout << "Inside findNextHEdge" << endl;
+  cout << "Inside findNextHEdge ";
+  if( nullptr != pAnchorHEdge )
+  {
+    cout << " with Anchor hedge ";
+    print_halfedge(*pAnchorHEdge);
+  }
+  else
+    cout << endl;
+
+  int nOfEdges = 0;
+  int nEndPtOnLeft = 0;
+  int nInx = 0;
+  if( nullptr != pAnchorHEdge )
+      ++nInx;
   do
   {
     Halfedge_const_handle hHEdgeToCheck = ciCurrHedge;
-    if( nullptr != pAnchorHEdge && *pAnchorHEdge == hHEdgeToCheck )
+    Point_2 srcPt = ciCurrHedge->source()->point();
+    Point_2 dstPt = ciCurrHedge->target()->point();
+    nEndPtOnLeft += (    CGAL::left_turn( srcPt, dstPt, endPt ) 
+                      || CGAL::collinear( srcPt, dstPt, endPt ) );
+    ++nOfEdges;
+
+    if( nullptr != pAnchorHEdge 
+        && ( *pAnchorHEdge == hHEdgeToCheck 
+             || *pAnchorHEdge == hHEdgeToCheck->twin() ) )
     {
       cout << "Skipping anchor hedge " << endl;
       continue;
@@ -245,8 +266,9 @@ SegmentCheck::findNextHEdge( Face_const_handle&           hCurrFace,
     if (currSeg.has_on(endPt))
     {
       // The end point is on the hHEdgeToCheck
+      ++nInx;
       cout << "\t End point is on the current segment ";
-      bResult = true;
+      bResult = true; 
       bDone = true;
       hResult = hHEdgeToCheck;
       break;
@@ -264,20 +286,51 @@ SegmentCheck::findNextHEdge( Face_const_handle&           hCurrFace,
       } else
       {
         // This is the next hedge to jump to
-        cout << " with a point" << endl;
-        hResult = hHEdgeToCheck;
-        break;
+        ++nInx;
+        const Point_2 *p = boost::get<Point_2>(&*result);
+        cout << " with a point ";
+        print_point( *p );
+        Point_2 startPt = querySegment.source();
+        if( startPt != *p || nullptr != pAnchorHEdge )
+        {
+          hResult = hHEdgeToCheck;
+          break;
+        }
       }
     }
   }
   while( ++ciCurrHedge != ciFirstHEdge );
+  cout << "\t nOfEdges = " << nOfEdges << ", nEndPtOnLeft = " << nEndPtOnLeft << endl;
+  if( 1 == nInx && nullptr != pAnchorHEdge )
+  {
+    cout << "One intersection point on the anchor edge"<< endl;
+    bResult = true;
+    bDone = true;  
+  }
+  else if( 2 == nInx && nullptr != pAnchorHEdge )
+  {
+    cout << "\tRegular case. Segment in, segment out" << endl;
+  }
+ else if( 0 == nInx && nullptr == pAnchorHEdge )
+  {
+    cout << "Start point properly inside the face and no intersections found - segment inside the face." << endl;
+    bResult = true;
+    bDone = true;    
+  }
+  else if( nOfEdges == nEndPtOnLeft )
+  {
+    cout << "\t End point inside the face. " << endl;
+    bResult = hCurrFace->contained();
+    bDone = true;
+  }
   return hResult;
 }
 
 //----------------------------------------------------------------------------
 Face_const_handle 
 SegmentCheck::chooseFace( Halfedge_const_handle hHEdge,
-                          const Point_2&        endPt )
+                          const Point_2&        endPt,
+                          Face_const_handle     hPrevFace )
 {
   Point_2 srcPt = hHEdge->source()->point();
   Point_2 dstPt = hHEdge->target()->point();
@@ -302,16 +355,54 @@ SegmentCheck::chooseFace( Halfedge_const_handle hHEdge,
   bool bEndColl = CGAL::collinear(srcPt, dstPt, endPt   );
   cout << "bLft     = " << bLft     << " bRgh     = " << bRgh     << " bEnd     = " << bEnd << endl;
   cout << "bLftColl = " << bLftColl << " bRghColl = " << bRghColl << " bEndColl = " << bEndColl << endl;
+  if( bLft == bRgh )
+  {
+    cout << "Bounded face has the correct answer " << endl;
+    if( hLeftFace->is_unbounded() )
+        bLft = !bLft;
+    else if( hRightFace->is_unbounded() )
+        bRgh = !bRgh;
+  }
   if( bLftColl && bEndColl && !bRghColl )
     return hLeftFace;
   if( bRghColl && bEndColl && !bLftColl )
     return hRightFace;
-  if( bLft == bEnd && bRgh != bEnd )
+  if( bLft == bEnd && (bRgh != bEnd || bRghColl) )
     return hLeftFace;
-  if( bRgh == bEnd && bLft != bEnd )
+  if( bRgh == bEnd && (bLft != bEnd || bLftColl) )
     return hRightFace;
+  if( hHEdge->face() == hPrevFace )
+  {
+    cout << "Flipping the side"<< endl;
+    return hHEdge->twin()->face();
+  }
+  else if( hHEdge->twin()->face() == hPrevFace )
+  {
+    cout << "Flipping the side " << endl;
+    return hHEdge->face();
+  }
 }
   
+//----------------------------------------------------------------------------
+bool 
+SegmentCheck::getCommonFace( Halfedge_const_handle hH1,
+                             Halfedge_const_handle hH2,
+                             Face_const_handle* pRes )
+{
+  bool bRes = true;
+  if( hH1->face() == hH2->face() )
+    *pRes = hH1->face();
+  else if( hH1->twin()->face() == hH2->face() )
+    *pRes = hH2->face();
+  else if( hH1->face() == hH2->twin()->face() )
+    *pRes = hH1->face();
+  else if( hH1->twin()->face() == hH2->twin()->face() )
+    *pRes = hH1->twin()->face();
+  else
+    bRes = false;
+  return bRes;
+}
+
 //----------------------------------------------------------------------------
 Face_const_handle 
 SegmentCheck::chooseFace( Vertex_const_handle hVrtx,
@@ -320,8 +411,8 @@ SegmentCheck::chooseFace( Vertex_const_handle hVrtx,
   Direction_2 theDir(direction);
   Arrangement_2::Halfedge_around_vertex_const_circulator ciStart = 
                                                  hVrtx->incident_halfedges();
-  Arrangement_2::Halfedge_around_vertex_const_circulator ciPrev = ciStart; 
   Arrangement_2::Halfedge_around_vertex_const_circulator ciCurr = ciStart;
+  Arrangement_2::Halfedge_around_vertex_const_circulator ciPrev = ciStart;
   Direction_2 currDir( getSegment( hVrtx->point(), 
                                    ciCurr->source()->point()));
   if( currDir == theDir )
@@ -332,24 +423,34 @@ SegmentCheck::chooseFace( Vertex_const_handle hVrtx,
     if( ciCurr->twin()->face()->contained() )
       return ciCurr->twin()->face(); 
   }
-  ++ciCurr;
-  Direction_2 prevDir( getSegment( hVrtx->point(), 
-                                   ciPrev->source()->point()) );
+  Direction_2 prevDir = currDir;
+  ++ciCurr; 
   do
   {
     Direction_2 currDir(getSegment(hVrtx->point(), 
                                    ciCurr->source()->point()));
-    if( currDir == theDir || 
-        theDir.counterclockwise_in_between( currDir, prevDir ) )
+    if( currDir == theDir )
     {
+      cout << "\t Sector found ";
       if( ciCurr->face()->contained() )
         return ciCurr->face();
       if( ciCurr->twin()->face()->contained() )
-        return ciCurr->twin()->face(); 
+        return ciCurr->twin()->face();
+      else
+        return ciCurr->face(); 
+    }
+    else if( theDir.counterclockwise_in_between( currDir, prevDir ) )
+    {
+      Face_const_handle hCmnFace;
+      if( !getCommonFace( ciCurr, ciPrev, &hCmnFace ) )
+        cout << "No common face found" << endl;
+      return hCmnFace;
     }
     prevDir = currDir;
+    ++ciCurr;
+    ++ciPrev;
   }
-  while( ++ciCurr != ciStart );
+  while( ciPrev != ciStart );
   return ciCurr->face();
 }
 
@@ -421,7 +522,7 @@ SegmentCheck::isFree( const Point_2& startPt, const Vector_2& direction )
     {
       cout << "Processing halfedge";
       print_halfedge( hHEdge );
-      hCurrFace = chooseFace( hHEdge, endPt );
+      hCurrFace = chooseFace( hHEdge, endPt, hCurrFace );
       if( !hCurrFace->contained() )
       {
         cout << "Got to forbidden face"<< endl;
@@ -449,7 +550,8 @@ SegmentCheck::isFree( const Point_2& startPt, const Vector_2& direction )
 
     if (CGAL::assign(hCurrFace, obj)) //if obj is face
     {
-      cout << "Handling a face" << endl;
+      cout << "Handling a face ";
+      print_arr_face( hCurrFace );
       if (!hCurrFace->contained())
       {
         cout << "Got to forbidden face" << endl;
@@ -467,9 +569,16 @@ SegmentCheck::isFree( const Point_2& startPt, const Vector_2& direction )
       cout << "Handling a vertex" << endl;
       print_point(hVrtx->point());
       hCurrFace = chooseFace( hVrtx, direction );
+      if( !hCurrFace->contained() )
+      {
+        cout << "Got to forbidden face" << endl;
+        bDone = true;
+        bResult = false;
+        break;      
+      }
       obj = CGAL::make_object( hCurrFace );
     }
-    cout << "Here" << endl;
+    cout << "** Here" << endl;
   }//end of while(bDone)
 
   cout << "bResult = " << ( bResult ? "True" : "False" ) << endl;

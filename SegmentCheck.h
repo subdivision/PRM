@@ -46,10 +46,13 @@ private:
                  const Halfedge_const_handle* pAnchorHEdge );
 
   Face_const_handle chooseFace( Halfedge_const_handle hHEdge,
-                                const Point_2&        endPt );
+                                const Point_2&        endPt,
+                                Face_const_handle hPrevFace );
   Face_const_handle chooseFace( Vertex_const_handle hVrtx,
                                 const Vector_2&     direction );
-
+  bool getCommonFace( Halfedge_const_handle hH1,
+                      Halfedge_const_handle hH2,
+                      Face_const_handle* pRes );
   void addFrame( const FT& rodLength );
 
 public:
