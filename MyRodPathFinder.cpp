@@ -23,6 +23,19 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
     if(findPath(queryHandler))
         return fetchPath();
 
+    //try again with *10 points
+    for_each(cMap.begin(), cMap.end(), [](auto& cp) { cp.second.inQueue=false; } );
+    setRandomPoints(NUM_OF_POINTS*10, queryHandler);
+
+    if(findPath(queryHandler))
+        return fetchPath();
+
+    //try again with *100 points
+    for_each(cMap.begin(), cMap.end(), [](auto& cp) { cp.second.inQueue=false; } );
+    setRandomPoints(NUM_OF_POINTS*100, queryHandler);
+
+    if(findPath(queryHandler))
+        return fetchPath();
     throw "no path found";
 }
 
@@ -77,7 +90,6 @@ bool MyRodPathFinder::findPath(IQueryHandler& queryHandler) {
     int edges = 0;
     while(!queue.empty()) {
         cPoint* current = queue.front();
-        current->visited = true;
         queue.pop_front();
         if(checkConnectCPoint(current,&this->endCPoint,queryHandler))
         {

@@ -16,9 +16,8 @@
 #include "Path.h"
 #include "MyQueryHandler.h"
 
-#define NUM_OF_POINTS 50000
-#define RADIUS 0.4
-//#define STEP_QUERIES 100
+#define NUM_OF_POINTS 500
+#define RADIUS 5
 
 using namespace std;
 
@@ -26,7 +25,6 @@ class cPoint{
 public:
     Point_2 point;
     double rotation;
-    bool visited = false;
     bool inQueue = false;
     cPoint* last = nullptr;
 };
