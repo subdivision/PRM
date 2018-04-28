@@ -8,15 +8,17 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
                                                     double rodStartRotation, Point_2 rodEndPoint,
                                                     double rodEndRotation, vector<Polygon_2>& obstacles)
 {
-    cout << "starting\n";
     NaiveQueryHandler queryHandler(rodLength, obstacles);
-    cout << "setDistributions\n";
-    setDistributions(rodLength, obstacles);
-    cout << "setRandomPoints\n";
-    setRandomPoints(NUM_OF_POINTS, queryHandler);
+    if(!queryHandler.isLegalConfiguration(rodStartPoint, rodStartRotation))
+        throw "start point is not legal";
+    if(!queryHandler.isLegalConfiguration(rodEndPoint, rodEndRotation))
+        throw "end point is not legal";
 
     startCPoint = {rodStartPoint,rodStartRotation};
     endCPoint = {rodEndPoint, rodEndRotation};
+
+    setDistributions(rodLength, obstacles);
+    setRandomPoints(NUM_OF_POINTS, queryHandler);
 
     if(findPath(queryHandler))
         return fetchPath();
@@ -28,13 +30,13 @@ void MyRodPathFinder::setDistributions(FT rodLength, vector<Polygon_2>& obstacle
     Polygon_set_2 freeSpace;
     freeSpace.join(obstacles.begin(), obstacles.end());
     Arrangement_2 arr = freeSpace.arrangement();
-    FT d = rodLength * 1.5;
+    FT d = rodLength;
 
     Arr_VrtxCIter iVrtx = arr.vertices_begin();
-    FT mostLeft = iVrtx->point().x();
-    FT mostRight = iVrtx->point().x();
-    FT mostUp = iVrtx->point().y();
-    FT mostDown = iVrtx->point().y();
+    FT mostLeft = startCPoint.point.x() < endCPoint.point.x() ? startCPoint.point.x() : endCPoint.point.x();
+    FT mostRight = startCPoint.point.x() < endCPoint.point.x() ? endCPoint.point.x() : startCPoint.point.x();
+    FT mostUp = startCPoint.point.y() < endCPoint.point.y() ? endCPoint.point.y() : startCPoint.point.y();
+    FT mostDown = startCPoint.point.y() < endCPoint.point.y() ? startCPoint.point.y() : endCPoint.point.y();
 
     for (; iVrtx != arr.vertices_end(); ++iVrtx) {
         if (iVrtx->point().x() < mostLeft)
@@ -53,13 +55,20 @@ void MyRodPathFinder::setDistributions(FT rodLength, vector<Polygon_2>& obstacle
 }
 
 void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler& queryHandler) {
+    re.seed(std::chrono::system_clock::now().time_since_epoch().count());
+    list<Point_2> Lr;
+    int counter=0;
     for(int i=1; i<=n; i++)
     {
         cPoint temp = {{xUnif(re),yUnif(re)},rUnif(re)};
-        if(queryHandler.isLegalConfiguration(temp.point, temp.rotation))
-            cPoints.push_back(temp);
+        if(queryHandler.isLegalConfiguration(temp.point, temp.rotation)) {
+            Lr.push_back(temp.point);
+            cMap[temp.point] = temp;
+            counter++;
+        }
     }
-    cout << "number of legal positions " << cPoints.size() << endl;
+    PSet.insert(Lr.begin(),Lr.end());
+    cout << "number of legal positions " << counter << endl;
 }
 
 bool MyRodPathFinder::findPath(IQueryHandler& queryHandler) {
@@ -67,19 +76,27 @@ bool MyRodPathFinder::findPath(IQueryHandler& queryHandler) {
     queue.push_back(&(this->startCPoint));
     int edges = 0;
     while(!queue.empty()) {
-        cPoint* temp = queue.front();
-        temp->visited = true;
+        cPoint* current = queue.front();
+        current->visited = true;
         queue.pop_front();
-        if(checkConnectCPoint(temp,&this->endCPoint,queryHandler))
+        if(checkConnectCPoint(current,&this->endCPoint,queryHandler))
         {
-            this->endCPoint.last = temp;
+            this->endCPoint.last = current;
             cout << "path found! edges " << edges <<endl;
             return true;
         }
-        for(int i=0; i<cPoints.size(); i++) {
-            if (checkConnectCPoint(temp, &(cPoints[i]), queryHandler))
+        list<Point_set_Vertex_handle> L;
+        list<Point_set_Vertex_handle>::const_iterator it;
+        Circle_2 rc(current->point,RADIUS);
+
+        PSet.range_search(rc, std::back_inserter(L));
+
+        for (it=L.begin();it != L.end(); it++)
+        {
+            cPoint* temp = &(cMap[(*it)->point()]);
+            if (checkConnectCPoint(current, temp, queryHandler))
             {
-                queue.push_back(&(cPoints[i]));
+                queue.push_back(temp);
                 edges++;
             }
         }
@@ -114,10 +131,10 @@ vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
 }
 
 bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &queryHandler) {
-    if(b->visited || b->inQueue)
+    if(b->inQueue)
         return false;
-    if(cPointDistance(a,b) > RADIUS)
-        return false;
+    /*if(cPointDistance(a,b) > RADIUS)
+        return false;*/
 
 
     Vector_2 pointsVector(a->point,b->point);
@@ -140,8 +157,10 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
             dir -= 2*M_PI;
         else if(dir < 0)
             dir += 2*M_PI;
+
         Point_2 p(a->point.x() + pointsVector.x() * (i/STEP_QUERIES),
                   a->point.y() + pointsVector.y() * (i/STEP_QUERIES));
+
         if(!queryHandler.isLegalConfiguration(p, dir))
             return false;
     }
@@ -154,11 +173,7 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
 }
 
 FT MyRodPathFinder::cPointDistance(cPoint *a, cPoint *b) {
-    Vector_2 a_dir = {cos(a->rotation), sin(a->rotation)};
-    Vector_2 b_dir = {cos(b->rotation), sin(b->rotation)};
-    Point_2 a_end = a->point + (a_dir * rodLength);
-    Point_2 b_end = b->point + (b_dir * rodLength);
-    return pointsDistance(a->point,b->point) + pointsDistance(a_end,b_end);
+    return pointsDistance(a->point,b->point) + pointsDistance(endRodPoint(a),endRodPoint(b));
 }
 
 FT MyRodPathFinder::pointsDistance(Point_2 a_point, Point_2 b_point)
@@ -167,4 +182,15 @@ FT MyRodPathFinder::pointsDistance(Point_2 a_point, Point_2 b_point)
                   (a_point.y() - b_point.y()) * (a_point.y() - b_point.y());
 
     return sqrt(CGAL::to_double(distance));;
+}
+
+Point_2 MyRodPathFinder::endRodPoint(cPoint *a)
+{
+    return endRodPoint(a->point, a->rotation);
+}
+
+Point_2 MyRodPathFinder::endRodPoint(Point_2 a, double dir)
+{
+    Vector_2 a_dir = {cos(dir), sin(dir)};
+    return a + (a_dir * rodLength);
 }
