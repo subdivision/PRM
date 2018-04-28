@@ -17,6 +17,7 @@
 
 #define NUM_OF_POINTS 1000
 #define RADIUS 0.5
+#define STEP_QUERIES 50
 
 using namespace std;
 

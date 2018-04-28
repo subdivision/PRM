@@ -9,7 +9,7 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
                                                     double rodEndRotation, vector<Polygon_2>& obstacles)
 {
     cout << "starting\n";
-    MyQueryHandler queryHandler(rodLength, obstacles);
+    NaiveQueryHandler queryHandler(rodLength, obstacles);
     cout << "setDistributions\n";
     setDistributions(rodLength, obstacles);
     cout << "setRandomPoints\n";
@@ -56,7 +56,6 @@ void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler& queryHandl
     for(int i=1; i<=n; i++)
     {
         cPoint temp = {{xUnif(re),yUnif(re)},rUnif(re)};
-        cout << temp.point << " " << temp.rotation << "\n";
         if(queryHandler.isLegalConfiguration(temp.point, temp.rotation))
             cPoints.push_back(temp);
     }
@@ -120,10 +119,32 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
     if(cPointDistance(a,b) > RADIUS)
         return false;
 
-    /*if(abs(a->rotation - b->rotation) > M_PI)
-    {
 
-    }*/
+    Vector_2 pointsVector(a->point,b->point);
+    double d =  a->rotation - b->rotation;
+    if((d > 0 && d < M_PI) || d < -M_PI)
+    {
+        d = b->rotation - a->rotation;
+        if(d > M_PI)
+            d -= 2*M_PI;
+    } else {
+        d = b->rotation - a->rotation;
+        if(d<0)
+            d += 2*M_PI;
+    }
+
+    for(int i=1; i<=STEP_QUERIES; i++)
+    {
+        double dir = a->rotation + d*i/STEP_QUERIES;
+        if(dir >= 2*M_PI)
+            dir -= 2*M_PI;
+        else if(dir < 0)
+            dir += 2*M_PI;
+        Point_2 p(a->point.x() + pointsVector.x() * (i/STEP_QUERIES),
+                  a->point.y() + pointsVector.y() * (i/STEP_QUERIES));
+        if(!queryHandler.isLegalConfiguration(p, dir))
+            return false;
+    }
 
     b->inQueue = true;
     b->last = a;

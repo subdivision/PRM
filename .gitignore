@@ -7,3 +7,4 @@ Makefile
 CMakeCache.txt
 QueryHandler
 RodPathFinder
+output
