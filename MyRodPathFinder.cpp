@@ -56,6 +56,7 @@ void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler& queryHandl
     for(int i=1; i<=n; i++)
     {
         cPoint temp = {{xUnif(re),yUnif(re)},rUnif(re)};
+        cout << temp.point << " " << temp.rotation << "\n";
         if(queryHandler.isLegalConfiguration(temp.point, temp.rotation))
             cPoints.push_back(temp);
     }
