@@ -15,7 +15,7 @@
 #include "Path.h"
 #include "MyQueryHandler.h"
 
-#define NUM_OF_POINTS 100000
+#define NUM_OF_POINTS 1000
 #define RADIUS 0.5
 
 using namespace std;
@@ -25,8 +25,7 @@ public:
     Point_2 point;
     double rotation;
     bool visited = false;
-    cPoint* last;
-    vector<cPoint*> neighbors;
+    cPoint* last = nullptr;
 };
 
 class MyRodPathFinder {
@@ -35,20 +34,16 @@ class MyRodPathFinder {
     double rodStartRotation, rodEndRotation;
     vector<Polygon_2> obstacles;
     FT rodLength;
-    cPoint start, end;
+    cPoint startCPoint, endCPoint;
     vector<cPoint> cPoints;
     uniform_real_distribution<double> xUnif, yUnif, rUnif;
     std::default_random_engine re;
 
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
-    cPoint getRandomPoint();
     FT cPointDistance(cPoint a, cPoint b);
-    bool checkConnectCPoint(cPoint a, cPoint b, MyQueryHandler& queryHandler);
+    bool checkConnectCPoint(cPoint a, cPoint b, IQueryHandler& queryHandler);
 
-    void setRandomPoints(unsigned long n, MyQueryHandler& queryHandler);
-    void addStartAndEndPoints();
-    void connectPoints(FT r, MyQueryHandler queryHandler);
-
+    void setRandomPoints(unsigned long n, IQueryHandler& queryHandler);
 
     bool findPath();
     vector<Path::PathMovement> fetchPath();

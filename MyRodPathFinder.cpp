@@ -9,16 +9,18 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
                                                     double rodEndRotation, vector<Polygon_2>& obstacles)
 {
     cout << "starting\n";
-    MyQueryHandler queryHandler(rodLength, obstacles);
+    NaiveQueryHandler queryHandler(rodLength, obstacles);
     cout << "setDistributions\n";
     setDistributions(rodLength, obstacles);
     cout << "setRandomPoints\n";
     setRandomPoints(NUM_OF_POINTS, queryHandler);
-   /* addStartAndEndPoints();
-    connectPoints(RADIUS);
+
+    startCPoint = {rodStartPoint,rodStartRotation};
+    endCPoint = {rodEndPoint, rodEndRotation};
+
     if(findPath())
         return fetchPath();
-*/
+
     throw "no path found";
 }
 
@@ -50,17 +52,13 @@ void MyRodPathFinder::setDistributions(FT rodLength, vector<Polygon_2>& obstacle
     rUnif = uniform_real_distribution<double>(0, 2*M_PI);
 }
 
-void MyRodPathFinder::setRandomPoints(unsigned long n, MyQueryHandler& queryHandler) {
+void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler& queryHandler) {
     for(int i=1; i<=n; i++)
     {
-        cPoint temp = getRandomPoint();
+        cPoint temp = {{xUnif(re),yUnif(re)},rUnif(re)};
         cout << "temp point " << temp.point << " direction " << temp.rotation << endl;
         if(queryHandler.isLegalConfiguration(temp.point, temp.rotation))
             cPoints.push_back(temp);
     }
     cout << "number of legal positions " << cPoints.size() << endl;
-}
-
-cPoint MyRodPathFinder::getRandomPoint() {
-    return {{xUnif(re),yUnif(re)},rUnif(re)};
 }
