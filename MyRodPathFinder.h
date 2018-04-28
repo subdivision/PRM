@@ -16,7 +16,7 @@
 #include "Path.h"
 #include "MyQueryHandler.h"
 
-#define NUM_OF_POINTS 500
+#define NUM_OF_POINTS 50
 #define RADIUS 5
 
 using namespace std;
