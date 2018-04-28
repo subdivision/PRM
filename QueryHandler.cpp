@@ -31,7 +31,7 @@ void getObstacles(vector<Polygon_2> &obstacles) {
     }
 }
 
-void handleQuery(int queryNum, FT timerSum, int &errors, IQueryHandler &queryHandler, IQueryHandler &tester) {
+void handleQuery(int queryNum, FT& timerSum, int &errors, IQueryHandler &queryHandler, IQueryHandler &tester) {
     double rotation;
     FT x, y;
     cin >> x >> y >> rotation;
@@ -46,19 +46,22 @@ void handleQuery(int queryNum, FT timerSum, int &errors, IQueryHandler &queryHan
 
 int main() {
     ios::sync_with_stdio(false);
-    FT rodLength;
+    FT rodLength = 7;
     vector<Polygon_2> obstacles;
 
     getRodLength(rodLength);
     getObstacles(obstacles);
 
+    boost::timer timer;
     MyQueryHandler queryHandler(rodLength, obstacles);
+    cout << "queryHandler creation took " << timer.elapsed() << " seconds" << endl;
     NaiveQueryHandler naiveTester(rodLength, obstacles);
 
     int numberOfQueries;
     getQueryCount(numberOfQueries);
     FT timerSum = 0;
     int errors = 0;
+    cout << "start queries" << endl;
     for (auto q = 1; q <= numberOfQueries; ++q)
         handleQuery(q, timerSum, errors, queryHandler, naiveTester);
 

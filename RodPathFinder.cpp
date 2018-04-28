@@ -5,13 +5,12 @@
 #include <vector>
 #include <boost/timer.hpp>
 #include "CGAL_defines.h"
+#include "MyQueryHandler.h"
 #include "MyRodPathFinder.h"
-
 
 using namespace std;
 
-void
-getRod(FT &rodLength, Point_2 &rodStartPoint, double &rodStartRotation, Point_2 &rodEndPoint, double &rodEndRotation) {
+void getRod(FT &rodLength, Point_2 &rodStartPoint, double &rodStartRotation, Point_2 &rodEndPoint, double &rodEndRotation) {
     FT x, y;
     cin >> rodLength >> x >> y >> rodStartRotation;
     rodStartPoint = {x, y};
