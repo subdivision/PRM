@@ -52,30 +52,37 @@ int main(int argc, char *argv[]) {
     getObstacles(obstacles);
 
     MyRodPathFinder myRodPathFinder;
-    boost::timer timer;
-    Path path = myRodPathFinder.getPath(rodLength, rodStartPoint, rodStartRotation, rodEndPoint, rodEndRotation,
-                                        obstacles);
-    cout << "Path creation time: " << timer.elapsed() << endl;
-    bool verifierResults = path.verify(rodLength, rodStartPoint, rodStartRotation, rodEndPoint, rodEndRotation,
-                                       obstacles, pathVerifierNumberOfPoints);
-    cout << "Path verifying: " << (verifierResults ? "SUCCESS!" : "FAILED!") << endl;
-    if (argc != 1) { // print out the resulting path.
-        ofstream file;
-        file.open(argv[1], ios_base::out | ios_base::trunc);
-        if (!file) {
-            cerr << "Couldn't open output file: " << argv[1];
-        } else {
-            file << obstacles.size() << endl;
-            for (auto &obs:obstacles) {
-                file << obs.size();
-                for (auto it = obs.vertices_begin(); it!=obs.vertices_end(); ++it) {
-                    file << " " << it->x().to_double() << " " << it->y().to_double();
+    try {
+        boost::timer timer;
+        Path path = myRodPathFinder.getPath(rodLength, rodStartPoint, rodStartRotation, rodEndPoint, rodEndRotation,
+                                            obstacles);
+        cout << "Path creation time: " << timer.elapsed() << endl;
+        bool verifierResults = path.verify(rodLength, rodStartPoint, rodStartRotation, rodEndPoint, rodEndRotation,
+                                           obstacles, pathVerifierNumberOfPoints);
+        cout << "Path verifying: " << (verifierResults ? "SUCCESS!" : "FAILED!") << endl;
+        if (argc != 1) { // print out the resulting path.
+            ofstream file;
+            file.open(argv[1], ios_base::out | ios_base::trunc);
+            if (!file) {
+                cerr << "Couldn't open output file: " << argv[1];
+            } else {
+                file << obstacles.size() << endl;
+                for (auto &obs:obstacles) {
+                    file << obs.size();
+                    for (auto it = obs.vertices_begin(); it != obs.vertices_end(); ++it) {
+                        file << " " << it->x().to_double() << " " << it->y().to_double();
+                    }
+                    file << endl;
                 }
-                file << endl;
+                file << rodLength.to_double() << endl;
+                file << path << endl;
             }
-            file << rodLength.to_double() << endl;
-            file << path << endl;
         }
+    }
+    catch (const char* c)
+    {
+        cout << "ERROR: " << c << endl;
+        return 0;
     }
 }
 

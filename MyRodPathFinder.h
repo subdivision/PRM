@@ -25,6 +25,7 @@ public:
     Point_2 point;
     double rotation;
     bool visited = false;
+    bool inQueue = false;
     cPoint* last = nullptr;
 };
 
@@ -40,13 +41,15 @@ class MyRodPathFinder {
     std::default_random_engine re;
 
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
-    FT cPointDistance(cPoint a, cPoint b);
-    bool checkConnectCPoint(cPoint a, cPoint b, IQueryHandler& queryHandler);
+    FT cPointDistance(cPoint *a, cPoint *b);
+    bool checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler& queryHandler);
 
     void setRandomPoints(unsigned long n, IQueryHandler& queryHandler);
 
-    bool findPath();
+    bool findPath(IQueryHandler& queryHandler);
     vector<Path::PathMovement> fetchPath();
+
+    FT pointsDistance(Point_2 a, Point_2 b);
 
 
 public:
