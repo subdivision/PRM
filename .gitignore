@@ -5,3 +5,5 @@ cmake-build-debug/
 cmake_install.cmake
 Makefile
 CMakeCache.txt
+QueryHandler
+RodPathFinder
