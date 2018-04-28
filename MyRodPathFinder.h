@@ -16,8 +16,8 @@
 #include "Path.h"
 #include "MyQueryHandler.h"
 
-#define NUM_OF_POINTS 30000
-#define RADIUS 0.5
+#define NUM_OF_POINTS 50000
+#define RADIUS 0.4
 //#define STEP_QUERIES 100
 
 using namespace std;
@@ -32,7 +32,7 @@ public:
 };
 
 class MyRodPathFinder {
-    const double STEP_QUERIES = 1000;
+    const double STEP_QUERIES = 100;
     vector<Polygon_2> obstacles;
     FT rodLength;
     cPoint startCPoint, endCPoint;

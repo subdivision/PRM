@@ -133,8 +133,8 @@ vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
 bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &queryHandler) {
     if(b->inQueue)
         return false;
-    /*if(cPointDistance(a,b) > RADIUS)
-        return false;*/
+    if(cPointDistance(a,b) > RADIUS)
+        return false;
 
 
     Vector_2 pointsVector(a->point,b->point);
