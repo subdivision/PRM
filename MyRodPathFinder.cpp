@@ -8,14 +8,15 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
                                                     double rodStartRotation, Point_2 rodEndPoint,
                                                     double rodEndRotation, vector<Polygon_2>& obstacles)
 {
+    this->rodLength = rodLength;
     NaiveQueryHandler queryHandler(rodLength, obstacles);
     if(!queryHandler.isLegalConfiguration(rodStartPoint, rodStartRotation))
         throw "start point is not legal";
     if(!queryHandler.isLegalConfiguration(rodEndPoint, rodEndRotation))
         throw "end point is not legal";
 
-    startCPoint = {rodStartPoint,rodStartRotation};
-    endCPoint = {rodEndPoint, rodEndRotation};
+    startCPoint = {rodStartPoint, endRodPoint(rodStartPoint, rodStartRotation),rodStartRotation};
+    endCPoint = {rodEndPoint, endRodPoint(rodEndPoint, rodEndRotation), rodEndRotation};
 
     setDistributions(rodLength, obstacles);
     setRandomPoints(NUM_OF_POINTS, queryHandler);
@@ -81,7 +82,9 @@ void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler& queryHandl
     int counter=0;
     for(int i=1; i<=n; i++)
     {
-        cPoint temp = {{xUnif(re),yUnif(re)},rUnif(re)};
+        Point_2 p = {xUnif(re),yUnif(re)};
+        double d = rUnif(re);
+        cPoint temp = {p,endRodPoint(p,d),d};
         if(queryHandler.isLegalConfiguration(temp.point, temp.rotation)) {
             Lr.push_back(temp.point);
             cMap[temp.point] = temp;
@@ -170,18 +173,21 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
             d += 2*M_PI;
     }
 
+    double currentDir = a->rotation;
+    double stepDir = d/STEP_QUERIES;
+
+    FT currentX = a->point.x();
+    FT stepX = pointsVector.x() /STEP_QUERIES;
+
+    FT currentY = a->point.y();
+    FT stepY = pointsVector.y() / STEP_QUERIES;
     for(int i=1; i<=STEP_QUERIES; i++)
     {
-        double dir = a->rotation + d*i/STEP_QUERIES;
-        if(dir >= 2*M_PI)
-            dir -= 2*M_PI;
-        else if(dir < 0)
-            dir += 2*M_PI;
+        currentDir += stepDir;
+        currentX += stepX;
+        currentY += stepY;
 
-        Point_2 p(a->point.x() + pointsVector.x() * (i/STEP_QUERIES),
-                  a->point.y() + pointsVector.y() * (i/STEP_QUERIES));
-
-        if(!queryHandler.isLegalConfiguration(p, dir))
+        if(!queryHandler.isLegalConfiguration({currentX,currentY}, currentDir))
             return false;
     }
 
@@ -193,7 +199,7 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
 }
 
 FT MyRodPathFinder::cPointDistance(cPoint *a, cPoint *b) {
-    return pointsDistance(a->point,b->point) + pointsDistance(endRodPoint(a),endRodPoint(b));
+    return pointsDistance(a->point,b->point) + pointsDistance(a->endPoint,b->endPoint);
 }
 
 FT MyRodPathFinder::pointsDistance(Point_2 a_point, Point_2 b_point)
@@ -202,11 +208,6 @@ FT MyRodPathFinder::pointsDistance(Point_2 a_point, Point_2 b_point)
                   (a_point.y() - b_point.y()) * (a_point.y() - b_point.y());
 
     return sqrt(CGAL::to_double(distance));;
-}
-
-Point_2 MyRodPathFinder::endRodPoint(cPoint *a)
-{
-    return endRodPoint(a->point, a->rotation);
 }
 
 Point_2 MyRodPathFinder::endRodPoint(Point_2 a, double dir)

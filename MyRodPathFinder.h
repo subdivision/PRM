@@ -24,6 +24,7 @@ using namespace std;
 class cPoint{
 public:
     Point_2 point;
+    Point_2 endPoint;
     double rotation;
     bool inQueue = false;
     cPoint* last = nullptr;
@@ -42,7 +43,6 @@ class MyRodPathFinder {
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
     FT cPointDistance(cPoint *a, cPoint *b);
     bool checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler& queryHandler);
-    Point_2 endRodPoint(cPoint *a);
     Point_2 endRodPoint(Point_2 a, double dir);
 
     void setRandomPoints(unsigned long n, IQueryHandler& queryHandler);
