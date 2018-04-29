@@ -44,7 +44,6 @@ add_executable(QueryHandler
                 QueryHandler.cpp
                 NaiveQueryHandler.cpp NaiveQueryHandler.h
                 IQueryHandler.h CGAL_defines.h
-                SegmentCheck.h SegmentCheck.cpp
                 MyQueryHandler.cpp MyQueryHandler.h)
 
 add_executable(RodPathFinder
@@ -53,7 +52,6 @@ add_executable(RodPathFinder
                 Path.cpp Path.h
                 NaiveQueryHandler.cpp NaiveQueryHandler.h
                 IQueryHandler.h CGAL_defines.h
-                SegmentCheck.h SegmentCheck.cpp
                 MyQueryHandler.cpp MyQueryHandler.h)
 
 add_to_cached_list(CGAL_EXECUTABLE_TARGETS QueryHandler)

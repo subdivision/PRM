@@ -21,17 +21,30 @@
 
 using namespace std;
 
-class cPoint{
+struct cPoint;
+
+struct CmpCPointPtrs
+{
+    bool operator()(const cPoint* lhs, const cPoint* rhs) const;
+};
+
+struct cPoint{
 public:
     Point_2 point;
     Point_2 endPoint;
     double rotation;
-    bool inQueue = false;
+    int inQueue = 0;
+    bool inTree = false;
     cPoint* last = nullptr;
+    map<cPoint*, bool, CmpCPointPtrs> edges;
 };
+
+
 
 class MyRodPathFinder {
     const double STEP_QUERIES = 100;
+    int legalCounter = 0;
+    int runIndex = 0;
     vector<Polygon_2> obstacles;
     FT rodLength;
     cPoint startCPoint, endCPoint;
@@ -43,6 +56,7 @@ class MyRodPathFinder {
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
     FT cPointDistance(cPoint *a, cPoint *b);
     bool checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler& queryHandler);
+    bool checkConnectCPointWrapper(cPoint *a, cPoint *b, IQueryHandler &queryHandler);
     Point_2 endRodPoint(Point_2 a, double dir);
 
     void setRandomPoints(unsigned long n, IQueryHandler& queryHandler);

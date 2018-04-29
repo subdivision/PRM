@@ -31,14 +31,18 @@ void getObstacles(vector<Polygon_2> &obstacles) {
     }
 }
 
-void handleQuery(int queryNum, FT& timerSum, int &errors, IQueryHandler &queryHandler, IQueryHandler &tester) {
+void handleQuery(int queryNum, FT& timerSum, FT& timerSum2, int &errors, IQueryHandler &queryHandler, IQueryHandler &tester) {
     double rotation;
     FT x, y;
     cin >> x >> y >> rotation;
     boost::timer timer;
-    auto result = queryHandler.isLegalConfiguration({x, y}, rotation);
+    bool result = queryHandler.isLegalConfiguration({x, y}, rotation);
     timerSum += timer.elapsed();
-    if (result != tester.isLegalConfiguration({x, y}, rotation)) {
+    boost::timer timer2;
+    bool verifier = tester.isLegalConfiguration({x, y}, rotation);
+    timerSum2 += timer2.elapsed();
+
+    if (result != verifier) {
         cout << "Failure in query: #" << queryNum << endl;
         errors++;
     }
@@ -60,13 +64,15 @@ int main() {
     int numberOfQueries;
     getQueryCount(numberOfQueries);
     FT timerSum = 0;
+    FT timerSum2 = 0;
     int errors = 0;
     cout << "start queries" << endl;
     for (auto q = 1; q <= numberOfQueries; ++q)
-        handleQuery(q, timerSum, errors, queryHandler, naiveTester);
+        handleQuery(q, timerSum, timerSum2, errors, queryHandler, naiveTester);
 
     cout << "Error rate: " << errors << "/" << numberOfQueries << endl;
     cout << "Mean time: " << (timerSum / numberOfQueries).to_double() << " secs" << endl;
+    cout << "Naive time: " << (timerSum2 / numberOfQueries).to_double() << " secs" << endl;
     return 0;
 }
 
