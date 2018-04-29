@@ -37,7 +37,6 @@ bool MyQueryHandler::_isLegalConfiguration(const Point_2 &point, const Vector_2 
 
     vector<CGAL::Object> vecZoneElems;
     Face_handle hFace;
-    Halfedge_handle hHEdge;
 
     CGAL::zone(_arr, querySegment, std::back_inserter(vecZoneElems), pl);
     for (int i = 0; i < vecZoneElems.size(); ++i) {
