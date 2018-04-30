@@ -3,6 +3,7 @@
 //
 
 #include "MyRodPathFinder.h"
+#include <queue>
 
 vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodStartPoint,
                                                     double rodStartRotation, Point_2 rodEndPoint,
@@ -80,12 +81,18 @@ void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler& queryHandl
 }
 
 bool MyRodPathFinder::findPath(IQueryHandler& queryHandler) {
-    list<cPoint*> queue;
-    queue.push_back(&(this->startCPoint));
+    //cPoint& refEndPt = this->endCPoint;
+    priority_queue< cPoint*, vector<cPoint*>, 
+                    function<bool (cPoint*, cPoint*)> > 
+      queue([&]( cPoint* p1, cPoint* p2 )->bool { 
+        return (  pointsDistance( p1->point, endCPoint.point) 
+                > pointsDistance( p2->point, endCPoint.point));
+      });
+    queue.push(&(this->startCPoint));
     int edges = 0;
     while(!queue.empty()) {
-        cPoint* current = queue.front();
-        queue.pop_front();
+        cPoint* current = queue.top();
+        queue.pop();
         if(checkConnectCPointWrapper(current,&this->endCPoint,queryHandler))
         {
             this->endCPoint.last = current;
@@ -103,7 +110,7 @@ bool MyRodPathFinder::findPath(IQueryHandler& queryHandler) {
             cPoint* temp = &(cMap[(*it)->point()]);
             if (checkConnectCPointWrapper(current, temp, queryHandler))
             {
-                queue.push_back(temp);
+                queue.push(temp);
                 temp->inTree = true;
                 temp->inQueue = runIndex;
                 temp->last = current;
