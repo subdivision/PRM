@@ -42,6 +42,7 @@ int main(int argc, char *argv[]) {
      * (The checks are randomize and might fail and not fail depending on the point along the path that were choosen).
      * If the checks take up to much time, reduce the value.
      */
+    //freopen("tests/test1","r",stdin);
     const int pathVerifierNumberOfPoints = 1000;
     FT rodLength;
     Point_2 rodStartPoint, rodEndPoint;
