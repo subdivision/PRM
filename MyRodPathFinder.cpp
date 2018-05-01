@@ -29,11 +29,12 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
 
     setDistributions(rodLength, obstacles);
 
-    int runs[] = {1, 10, 20, 50, 100, 200, 500, 1000};
-    for (int run:runs) {
+    int runs[] = {1, 2, 5, 10, 20};
+    double raduises[] = {8, 5, 3, 2, 1};
+    for (int i; i<8;i++) {
         //run index denote whice points is already in queue.
-        setRandomPoints(NUM_OF_POINTS * run, queryHandler);
-
+        setRandomPoints(NUM_OF_POINTS * runs[i], queryHandler);
+        this->RADIUS = raduises[i];
         while (findPath(queryHandler)) {
             if (checkPath(queryHandler))
                 return fetchPath();
@@ -70,8 +71,8 @@ void MyRodPathFinder::setDistributions(FT rodLength, vector<Polygon_2> &obstacle
             mostUp = iVrtx->point().y();
     }
 
-    xUnif = uniform_real_distribution<double>(CGAL::to_double(mostLeft - d), CGAL::to_double(mostRight + d));
-    yUnif = uniform_real_distribution<double>(CGAL::to_double(mostDown - d), CGAL::to_double(mostUp + d));
+    xUnif = uniform_real_distribution<double>(CGAL::to_double(mostLeft - d/10), CGAL::to_double(mostRight + d/10));
+    yUnif = uniform_real_distribution<double>(CGAL::to_double(mostDown - d/10), CGAL::to_double(mostUp + d/10));
     rUnif = uniform_real_distribution<double>(0, 2 * M_PI);
 }
 
@@ -89,13 +90,12 @@ void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler &queryHandl
 }
 
 bool MyRodPathFinder::findPath(IQueryHandler &queryHandler) {
-    //cPoint& refEndPt = this->endCPoint;
+    cPoint* refEndPt = &(this->endCPoint);
 
     priority_queue<cPoint *, vector<cPoint *>, function<bool(cPoint *, cPoint *)> >
             queue([&](cPoint *p1, cPoint *p2) -> bool {
-        return (pointsDistance(p1->point, endCPoint.point)
-                > pointsDistance(p2->point, endCPoint.point));
-    });
+        return (cPointDistance(p1, refEndPt) > cPointDistance(p2, refEndPt));
+                });
 
     queue.push(&(this->startCPoint));
     int edges = 0;
@@ -136,14 +136,14 @@ bool MyRodPathFinder::checkConnectCPointWrapper(cPoint *a, cPoint *b, IQueryHand
     Edge edge(a, b);
     auto it = edges.find(edge);
     if (it != edges.end())
-        return it->second;
+        return it->second > 0;
 
     bool ans = false;
     if (cPointDistance(a, b) < RADIUS)
-        ans = checkConnectCPoint(a, b, queryHandler, STEP_QUERIES);
-
-    edges[edge] = ans;
-    edges[make_pair(b, a)] = ans;
+        ans = checkConnectCPoint(a, b, queryHandler, STEP_QUERIES+a->cost+b->cost);
+    int res = ans? STEP_QUERIES : -1;
+    edges[edge] = res;
+    edges[make_pair(b, a)] = res;
 
     return ans;
 }
@@ -180,13 +180,27 @@ bool MyRodPathFinder::checkPath(IQueryHandler &queryHandler) {
     cPoint *start = &this->startCPoint;
     bool res = true;
     while (temp != start) {
+        Edge edge(temp, temp->last);
+        auto it = edges.find(edge);
+        if (it != edges.end() && it->second >= VERIFY_QUERIES)
+        {
+            temp = temp->last;
+            continue;
+        }
+
         if (!checkConnectCPoint(temp, temp->last, queryHandler, VERIFY_QUERIES)) {
             cout << "verfing failed between " << temp->point << " to " << temp->last->point << endl;
 
-            edges[make_pair(temp, temp->last)] = false;
-            edges[make_pair(temp->last, temp)] = false;
+            edges[make_pair(temp, temp->last)] = -1;
+            edges[make_pair(temp->last, temp)] = -1;
+            temp->cost += 50;
+            temp->last->cost += 50;
 
             res = false;
+        } else
+        {
+            edges[make_pair(temp, temp->last)] = VERIFY_QUERIES;
+            edges[make_pair(temp->last, temp)] = VERIFY_QUERIES;
         }
         temp = temp->last;
 
@@ -218,15 +232,19 @@ vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
     return path;
 }
 
-FT MyRodPathFinder::cPointDistance(cPoint *a, cPoint *b) {
-    return pointsDistance(a->point, b->point) + pointsDistance(a->endPoint, b->endPoint);
+double MyRodPathFinder::cPointDistance(cPoint *a, cPoint *b) {
+    double xdiff = CGAL::to_double(a->point.x()) - CGAL::to_double(b->point.x());
+    double ydiff = CGAL::to_double(a->point.y()) - CGAL::to_double(b->point.y());
+    double rdiff = (a->rotation-b->rotation);
+
+    return xdiff*xdiff + ydiff*ydiff + rdiff*rdiff;
 }
 
 FT MyRodPathFinder::pointsDistance(Point_2 a_point, Point_2 b_point) {
     FT distance = (a_point.x() - b_point.x()) * (a_point.x() - b_point.x()) +
                   (a_point.y() - b_point.y()) * (a_point.y() - b_point.y());
 
-    return sqrt(CGAL::to_double(distance));;
+    return sqrt(CGAL::to_double(distance));
 }
 
 Point_2 MyRodPathFinder::endRodPoint(Point_2 a, double dir) {

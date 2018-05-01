@@ -16,9 +16,9 @@
 #include "Path.h"
 #include "MyQueryHandler.h"
 
-#define NUM_OF_POINTS 50
-#define RADIUS 5
-#define STEP_QUERIES 10
+#define NUM_OF_POINTS 5000
+//#define RADIUS 2
+#define STEP_QUERIES 5
 #define VERIFY_QUERIES 1000
 
 using namespace std;
@@ -33,12 +33,14 @@ public:
     Point_2 endPoint;
     double rotation;
     int inQueue = 0;
+    int cost = 0;
     cPoint* last = nullptr;
 };
 
 
 
 class MyRodPathFinder {
+    double RADIUS = 2;
     typedef pair<cPoint*, cPoint*> Edge;
     int legalCounter = 0;
     int runIndex = 1; //first run
@@ -49,10 +51,10 @@ class MyRodPathFinder {
     std::default_random_engine re;
     multimap<Point_2, cPoint> cMap;
     Point_set PSet;
-    map<Edge, bool> edges;
+    map<Edge, int> edges;
 
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
-    FT cPointDistance(cPoint *a, cPoint *b);
+    double cPointDistance(cPoint *a, cPoint *b);
     bool checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler& queryHandler, int queries);
     bool checkConnectCPointWrapper(cPoint *a, cPoint *b, IQueryHandler &queryHandler);
     Point_2 endRodPoint(Point_2 a, double dir);
