@@ -71,11 +71,11 @@ int main(int argc, char *argv[]) {
                 for (auto &obs:obstacles) {
                     file << obs.size();
                     for (auto it = obs.vertices_begin(); it != obs.vertices_end(); ++it) {
-                        file << " " << it->x().to_double() << " " << it->y().to_double();
+                        file << " " << CGAL::to_double(it->x()) << " " << CGAL::to_double(it->y());
                     }
                     file << endl;
                 }
-                file << rodLength.to_double() << endl;
+                file << CGAL::to_double(rodLength) << endl;
                 file << path << endl;
             }
         }

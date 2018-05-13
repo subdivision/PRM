@@ -23,19 +23,19 @@
 #include <CGAL/Arrangement_2.h>
 #include <CGAL/Arr_observer.h>
 #include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/Search_traits_3.h>
+#include <CGAL/Kd_tree.h>
+#include <CGAL/Fuzzy_sphere.h>
 
-typedef typename CGAL::Gmpq Number_type;
-typedef typename CGAL::Cartesian<Number_type> Kernel;
+
+typedef CGAL::Exact_predicates_exact_constructions_kernel Kernel;
 typedef typename Kernel::FT FT;
 typedef typename Kernel::Point_2 Point_2;
+typedef typename Kernel::Point_3 Point_3;
 typedef typename Kernel::Vector_2 Vector_2;
 typedef typename Kernel::Segment_2 Segment_2;
-typedef typename Kernel::Direction_2 Direction_2;
 typedef typename Kernel::Line_2 Line_2;
-typedef typename CGAL::Circle_2<Kernel> Circle_2;
-typedef typename CGAL::Point_set_2<Kernel> Point_set;
 typedef typename CGAL::Polygon_2<Kernel> Polygon_2;
-typedef CGAL::Point_set_2<Kernel>::Vertex_handle Point_set_Vertex_handle;
 typedef typename CGAL::Polygon_set_2<Kernel> Polygon_set_2;
 typedef Polygon_set_2::Arrangement_2 Arrangement_2;
 
@@ -48,9 +48,12 @@ typedef typename Arrangement_2::Halfedge_handle                 Halfedge_handle;
 typedef typename Arrangement_2::Halfedge_const_handle           Halfedge_const_handle;
 typedef typename Arrangement_2::X_monotone_curve_2              X_monotone_curve_2;
 typedef typename Arrangement_2::Vertex_const_iterator           Arr_VrtxCIter;
-typedef typename Arrangement_2::Ccb_halfedge_const_circulator   ccb_haledge_circulator;
 typedef typename CGAL::Arr_landmarks_point_location<Arrangement_2> Landmarks_pl;
 
-typedef Kernel::Intersect_2 Intersect_2;
+
+typedef CGAL::Search_traits_3<Kernel>  Traits;
+typedef typename CGAL::Kd_tree<Traits> Tree;
+typedef CGAL::Fuzzy_sphere<Traits> Fuzzy_sphere;
+
 
 #endif //RODQUERY_CGAL_DEFINES_H

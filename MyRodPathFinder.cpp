@@ -5,9 +5,28 @@
 #include "MyRodPathFinder.h"
 #include <queue>
 
-cPoint::cPoint(Point_2 p, Point_2 e, double r) : point(p), endPoint(e), rotation(r) {}
+cPoint::cPoint(Point_2 p, Point_2 e, double r) :
+        point(p), point3(p[0],p[1],r), endPoint(e), rotation(r) {}
 
 cPoint::cPoint() {
+}
+
+bool CmpCPointsPtrs::operator()(const cPoint *lhs, const cPoint *rhs) const {
+
+    if(lhs->distanceToEnd != rhs->distanceToEnd)
+        return lhs->distanceToEnd < rhs->distanceToEnd;
+
+    if(lhs->distance != rhs->distance)
+        return lhs->distance < rhs->distance;
+
+    return lhs->point3 < rhs->point3;
+}
+
+bool CmpEdges::operator()(const Edge lhs, const Edge rhs) const {
+    if(lhs.second != rhs.second)
+        return lhs.second < rhs.second;
+
+    return lhs.first->point3 < rhs.first->point3;
 }
 
 vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodStartPoint,
@@ -29,21 +48,9 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
 
     setDistributions(rodLength, obstacles);
 
-    int runs[] = {1, 2, 5, 10, 20};
-    double raduises[] = {8, 5, 3, 2, 1};
-    for (int i; i<8;i++) {
-        //run index denote whice points is already in queue.
-        setRandomPoints(NUM_OF_POINTS * runs[i], queryHandler);
-        this->RADIUS = raduises[i];
-        while (findPath(queryHandler)) {
-            if (checkPath(queryHandler))
-                return fetchPath();
-
-            cout << "verifing failed\n";
-            runIndex++;
-        }
-        runIndex++;
-    }
+    setRandomPoints(NUM_OF_POINTS, queryHandler);
+    if(findPath(queryHandler))
+        return fetchPath();
 
     throw "no path found";
 }
@@ -81,74 +88,96 @@ void MyRodPathFinder::setRandomPoints(unsigned long n, IQueryHandler &queryHandl
         Point_2 p = {xUnif(re), yUnif(re)};
         double d = rUnif(re);
         if (queryHandler.isLegalConfiguration(p, d)) {
-            PSet.insert(p);
-            cMap.insert(std::pair<Point_2, cPoint>(p, cPoint(p, endRodPoint(p, d), d)));
+            Point_3 p3(p[0],p[1],d);
+            tree.insert(p3);
+            cPoint cp = cPoint(p, endRodPoint(p, d), d);
+            cp.distanceToEnd = cPointDistance(&cp, &this->endCPoint);
+            cMap.insert(std::pair<Point_3, cPoint>(p3, cp));
             legalCounter++;
         }
     }
     cout << "number of legal positions " << legalCounter << endl;
 }
 
-bool MyRodPathFinder::findPath(IQueryHandler &queryHandler) {
-    cPoint* refEndPt = &(this->endCPoint);
+void MyRodPathFinder::addEdge(cPoint *current, cPoint *temp) {
+    if(temp->visited)
+        return;
 
-    priority_queue<cPoint *, vector<cPoint *>, function<bool(cPoint *, cPoint *)> >
-            queue([&](cPoint *p1, cPoint *p2) -> bool {
-        return (cPointDistance(p1, refEndPt) > cPointDistance(p2, refEndPt));
-                });
+    this->queue.insert(temp);
 
-    queue.push(&(this->startCPoint));
-    int edges = 0;
-    while (!queue.empty()) {
-        cPoint *current = queue.top();
-        queue.pop();
-        if (checkConnectCPointWrapper(current, &this->endCPoint, queryHandler)) {
-            this->endCPoint.last = current;
-            cout << "path found! edges " << edges << endl;
+    double newDistance = current->distance + cPointDistance(current, temp);
+    temp->edges.insert(Edge(current, newDistance));
+}
+
+bool MyRodPathFinder::connectCPoint(cPoint *current, IQueryHandler& queryHandler) {
+    //cout << "\t\tedges " << current->edges.size() << endl;
+    for(auto edgeIt = current->edges.begin(); edgeIt != current->edges.end();)
+    {
+        checks++;
+        //cout << "\t\t check edge from " << edgeIt->first->point << " dis " << edgeIt->second;
+        if(checkConnectCPoint(edgeIt->first,current,queryHandler))
+        {
+            current->last = edgeIt->first;
+            current->distance = edgeIt->second;
+            current->visited = true;
+            //cout << " passed!\n";
             return true;
         }
 
-        list<Point_set_Vertex_handle> L;
-        list<Point_set_Vertex_handle>::const_iterator it;
-        Circle_2 rc(current->point, RADIUS);
-
-        PSet.range_search(rc, std::back_inserter(L));
-        for (it = L.begin(); it != L.end(); it++) {
-            auto range = cMap.equal_range((*it)->point());
-            for (auto i = range.first; i != range.second; ++i) {
-                cPoint *temp = &(i->second);
-                if (checkConnectCPointWrapper(current, temp, queryHandler)) {
-                    queue.push(temp);
-                    temp->inQueue = runIndex;
-                    temp->last = current;
-                    edges++;
-                }
-            }
-        }
+        edgeIt = current->edges.erase(edgeIt);
+        //cout << "\n";
     }
-    cout << "path not found! edges " << edges << endl;
+    //cout << " failed!\n";
     return false;
 }
 
-bool MyRodPathFinder::checkConnectCPointWrapper(cPoint *a, cPoint *b, IQueryHandler &queryHandler) {
-    if (b->inQueue == runIndex)
-        return false;
-    Edge edge(a, b);
-    auto it = edges.find(edge);
-    if (it != edges.end())
-        return it->second > 0;
+void MyRodPathFinder::addNeighbors(cPoint *current) {
+    list<Point_3> L;
+    list<Point_3>::const_iterator it;
+    Fuzzy_sphere rc(current->point3, RADIUS);
 
-    bool ans = false;
-    if (cPointDistance(a, b) < RADIUS)
-        ans = checkConnectCPoint(a, b, queryHandler, STEP_QUERIES+a->cost+b->cost);
-    int res = ans? STEP_QUERIES : -1;
-    edges[edge] = res;
-    edges[make_pair(b, a)] = res;
 
-    return ans;
+    tree.search(std::back_inserter(L), rc);
+
+    edgesNum += L.size();
+    //cout << "adding " << L.size() << " edges\n";
+    for (it = L.begin(); it != L.end(); it++) {
+        cPoint* temp = &(cMap[*it]);
+        addEdge(current, temp);
+    }
 }
 
-bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &queryHandler, int queries) {
+bool MyRodPathFinder::findPath(IQueryHandler &queryHandler) {
+    cPoint* refEndPt = &(this->endCPoint);
+
+    addNeighbors(&(this->startCPoint));
+
+    while (!queue.empty()) {
+        cPoint *current = *(queue.begin());
+        //cout << "current " << current->point << " " << current->distanceToEnd;
+        if(!connectCPoint(current,queryHandler))
+        {
+            queue.erase(current);
+            continue;
+        }
+        if(current->distanceToEnd < END_RADIUS) {
+            checks++;
+            if (checkConnectCPoint(current, &this->endCPoint, queryHandler)) {
+                this->endCPoint.last = current;
+                cout << "found, checks " << checks << " edgse " << edgesNum << endl;
+                return true;
+            }
+        }
+
+        addNeighbors(current);
+
+        queue.erase(current);
+    }
+    cout << "not found, checks " << checks << " edgse " << edgesNum << endl;
+    return false;
+}
+
+bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &queryHandler) {
     Vector_2 pointsVector(a->point, b->point);
     double d = b->rotation - a->rotation;
     if (d > M_PI)
@@ -157,14 +186,14 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
         d += 2 * M_PI;
 
     double currentDir = a->rotation;
-    double stepDir = d / queries;
+    double stepDir = d / STEP_QUERIES;
 
     FT currentX = a->point.x();
-    FT stepX = pointsVector.x() / queries;
+    FT stepX = pointsVector.x() / STEP_QUERIES;
 
     FT currentY = a->point.y();
-    FT stepY = pointsVector.y() / queries;
-    for (int i = 1; i < queries; i++) {
+    FT stepY = pointsVector.y() / STEP_QUERIES;
+    for (int i = 1; i < STEP_QUERIES; i++) {
         currentDir += stepDir;
         currentX += stepX;
         currentY += stepY;
@@ -173,39 +202,6 @@ bool MyRodPathFinder::checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler &qu
             return false;
     }
     return true;
-}
-
-bool MyRodPathFinder::checkPath(IQueryHandler &queryHandler) {
-    cPoint *temp = &this->endCPoint;
-    cPoint *start = &this->startCPoint;
-    bool res = true;
-    while (temp != start) {
-        Edge edge(temp, temp->last);
-        auto it = edges.find(edge);
-        if (it != edges.end() && it->second >= VERIFY_QUERIES)
-        {
-            temp = temp->last;
-            continue;
-        }
-
-        if (!checkConnectCPoint(temp, temp->last, queryHandler, VERIFY_QUERIES)) {
-            cout << "verfing failed between " << temp->point << " to " << temp->last->point << endl;
-
-            edges[make_pair(temp, temp->last)] = -1;
-            edges[make_pair(temp->last, temp)] = -1;
-            temp->cost += 50;
-            temp->last->cost += 50;
-
-            res = false;
-        } else
-        {
-            edges[make_pair(temp, temp->last)] = VERIFY_QUERIES;
-            edges[make_pair(temp->last, temp)] = VERIFY_QUERIES;
-        }
-        temp = temp->last;
-
-    }
-    return res;
 }
 
 vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
@@ -227,28 +223,26 @@ vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
     for (int i = static_cast<int>(tempVector.size() - 1); i >= 0; i--)
         path.push_back(tempVector[i]);
 
-    for (Path::PathMovement &t:path)
-        cout << t << endl;
+    cout << "path lenght " << path.size() << endl;
     return path;
 }
 
 double MyRodPathFinder::cPointDistance(cPoint *a, cPoint *b) {
     double xdiff = CGAL::to_double(a->point.x()) - CGAL::to_double(b->point.x());
     double ydiff = CGAL::to_double(a->point.y()) - CGAL::to_double(b->point.y());
-    double rdiff = (a->rotation-b->rotation);
+    double rdiff = a->rotation - b->rotation;
 
-    return xdiff*xdiff + ydiff*ydiff + rdiff*rdiff;
-}
-
-FT MyRodPathFinder::pointsDistance(Point_2 a_point, Point_2 b_point) {
-    FT distance = (a_point.x() - b_point.x()) * (a_point.x() - b_point.x()) +
-                  (a_point.y() - b_point.y()) * (a_point.y() - b_point.y());
-
-    return sqrt(CGAL::to_double(distance));
+    return sqrt(xdiff*xdiff + ydiff*ydiff + rdiff*rdiff);
 }
 
 Point_2 MyRodPathFinder::endRodPoint(Point_2 a, double dir) {
     Vector_2 a_dir = {cos(dir), sin(dir)};
     return a + (a_dir * rodLength);
 }
+
+
+
+
+
+
 

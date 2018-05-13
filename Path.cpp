@@ -43,7 +43,7 @@ Path::verify(FT rodLength, Point_2 rodStartPoint, double rodStartRotation, Point
             return
                     cout << "Failure: while moving from " << _path[index] << " to " << _path[index + 1]
                          << " (indexes in path: " << index << "->" << (index + 1) << "), at (point, rotation): (("
-                         << p.x().to_double() << ", " << p.y().to_double() << "), "
+                         << CGAL::to_double(p.x()) << ", " << CGAL::to_double(p.y()) << "), "
                          << r3
                          << ")." << endl, false;
     }
@@ -52,7 +52,7 @@ Path::verify(FT rodLength, Point_2 rodStartPoint, double rodStartRotation, Point
 }
 
 ostream &operator<<(ostream &os, const Path::PathMovement &dt) {
-    os << "((" << dt.location.x().to_double() << ", " << dt.location.y().to_double() << "), " << dt.rotation << ", "
+    os << "((" << CGAL::to_double(dt.location.x()) << ", " << CGAL::to_double(dt.location.y()) << "), " << dt.rotation << ", "
        << (dt.orientation == CGAL::CLOCKWISE ? "CLOCKWISE" : "COUNTERCLOCKWISE") << ")";
     return os;
 }
@@ -60,7 +60,7 @@ ostream &operator<<(ostream &os, const Path::PathMovement &dt) {
 ostream &operator<<(ostream &os, const Path &pt) {
     os << pt._path.size() << endl;
     for (auto &p: pt._path) {
-        os << p.location.x().to_double() << " " << p.location.y().to_double() << " " << p.rotation << " "
+        os << CGAL::to_double(p.location.x()) << " " << CGAL::to_double(p.location.y()) << " " << p.rotation << " "
            << (p.orientation == CGAL::CLOCKWISE ? "-1" : "1") << endl;
     }
     return os;

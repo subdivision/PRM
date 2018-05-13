@@ -71,8 +71,8 @@ int main() {
         handleQuery(q, timerSum, timerSum2, errors, queryHandler, naiveTester);
 
     cout << "Error rate: " << errors << "/" << numberOfQueries << endl;
-    cout << "Mean time: " << (timerSum / numberOfQueries).to_double() << " secs" << endl;
-    cout << "Naive time: " << (timerSum2 / numberOfQueries).to_double() << " secs" << endl;
+    cout << "Mean time: " << CGAL::to_double(timerSum / numberOfQueries) << " secs" << endl;
+    cout << "Naive time: " << CGAL::to_double(timerSum2 / numberOfQueries) << " secs" << endl;
     return 0;
 }
 
