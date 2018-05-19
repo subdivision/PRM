@@ -57,6 +57,7 @@ int main(int argc, char *argv[]) {
         boost::timer timer;
         Path path = myRodPathFinder.getPath(rodLength, rodStartPoint, rodStartRotation, rodEndPoint, rodEndRotation,
                                             obstacles);
+
         cout << "Path creation time: " << timer.elapsed() << endl;
         bool verifierResults = path.verify(rodLength, rodStartPoint, rodStartRotation, rodEndPoint, rodEndRotation,
                                            obstacles, pathVerifierNumberOfPoints);
@@ -83,7 +84,8 @@ int main(int argc, char *argv[]) {
     catch (const char* c)
     {
         cout << "ERROR: " << c << endl;
-        return 0;
     }
+    myRodPathFinder.printStatistics();
+    myRodPathFinder.exportCPoints();
 }
 

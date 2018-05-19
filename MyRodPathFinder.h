@@ -9,6 +9,7 @@
 #include <random>
 #include <math.h>
 #include <map>
+#include <queue>
 
 #include "NaiveQueryHandler.h"
 
@@ -16,16 +17,15 @@
 #include "Path.h"
 #include "MyQueryHandler.h"
 
-#define NUM_OF_POINTS 10000
-#define RADIUS 1
-#define STEP_QUERIES 1000
-#define END_RADIUS 5
+#define NUM_OF_POINTS_PER_SQUARE 100
+#define RADIUS 1.5
+#define STEP_QUERIES 100
+#define END_RADIUS 15
 
 using namespace std;
 
 struct cPoint;
-
-typedef pair<cPoint*, double> Edge;
+struct Edge;
 
 struct CmpEdges
 {
@@ -43,20 +43,31 @@ public:
     double distanceToEnd;
     double distance = 0;
     bool visited = false;
+    int state = 0;
     cPoint* last = nullptr;
-    set<Edge, CmpEdges> edges;
 };
 
-
-struct CmpCPointsPtrs
-{
-    bool operator()(const cPoint* lhs, const cPoint* rhs) const;
+struct Edge{
+        cPoint *from, *to;
+        double distance;
 };
 
 class MyRodPathFinder {
-    int checks=0;
-    int edgesNum = 0;
-    int legalCounter = 0;
+    //statistics:
+    int numberOfRandomConfiguration = 0;
+    int legalConfiguration = 0;
+    int discoveredConfigurations = 0;
+    int processedConfigurations = 0;
+
+    int checkedEdges = 0;
+    int forbiddenEdges = 0;
+    int numOfEdges = 0;
+    int queueMaxSize = 0;
+    int endEdgesChecked = 0;
+
+    int pathLength = 0;
+
+
     vector<Polygon_2> obstacles;
     FT rodLength;
     cPoint startCPoint, endCPoint;
@@ -65,7 +76,7 @@ class MyRodPathFinder {
     std::default_random_engine re;
 
     map<Point_3, cPoint> cMap;
-    set<cPoint*, CmpCPointsPtrs> queue;
+    priority_queue<Edge, vector<Edge>, CmpEdges> queue;
     Tree tree;
 
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
@@ -73,19 +84,23 @@ class MyRodPathFinder {
     bool checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler& queryHandler);
 
     Point_2 endRodPoint(Point_2 a, double dir);
-    void setRandomPoints(unsigned long n, IQueryHandler& queryHandler);
+    void setRandomPoints(IQueryHandler& queryHandler);
 
 
     bool findPath(IQueryHandler& queryHandler);
     void addEdge(cPoint *current, cPoint *temp);
     void addNeighbors(cPoint *current);
-    bool connectCPoint(cPoint *current, IQueryHandler& queryHandler);
+    bool checkEdge(Edge& edge, IQueryHandler& queryHandler);
 
     vector<Path::PathMovement> fetchPath();
+
 
 public:
     vector<Path::PathMovement> getPath(FT rodLength, Point_2 rodStartPoint, double rodStartRotation,
                                        Point_2 rodEndPoint, double rodEndRotation, vector<Polygon_2>& obstacles);
+    void printStatistics();
+    void exportCPoints();
+
 };
 
 
