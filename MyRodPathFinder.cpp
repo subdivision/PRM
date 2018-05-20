@@ -50,19 +50,6 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
     throw "no path found";
 }
 
-void MyRodPathFinder::exportCPoints()
-{
-    ofstream file;
-    file.open("points", ios_base::out | ios_base::trunc);
-    for (auto it=cMap.begin(); it!=cMap.end(); ++it)
-    {
-        file << it->second.state << " ";
-        file << CGAL::to_double(it->second.point.x()) << " " << CGAL::to_double(it->second.point.y()) <<
-             " " << it->second.rotation << endl;
-    }
-}
-
-
 void MyRodPathFinder::setDistributions(FT rodLength, vector<Polygon_2> &obstacles) {
     Polygon_set_2 freeSpace;
     freeSpace.join(obstacles.begin(), obstacles.end());
@@ -106,7 +93,7 @@ void MyRodPathFinder::setRandomPoints(IQueryHandler &queryHandler) {
             cPoint cp = cPoint(p, d);
             tree.insert(cp.point3);
             cMap.insert(std::pair<Point_3, cPoint>(cp.point3, cp));
-            legalConfiguration++;
+        //    legalConfiguration++;
         }
     }
 }
@@ -114,11 +101,11 @@ void MyRodPathFinder::setRandomPoints(IQueryHandler &queryHandler) {
 void MyRodPathFinder::addEdge(cPoint *current, cPoint *temp) {
     if(temp->visited)
         return;
-    if(temp->state == 0)
-    {
-        temp->state = 1;
-        discoveredConfigurations++;
-    }
+    //if(temp->state == 0)
+    //{
+    //    temp->state = 1;
+    //    discoveredConfigurations++;
+    //}
     if(temp->heuristic < 0 )
         temp->heuristic = heuristic(temp);
     double newDistance = current->distance + cPointDistance(current, temp) + temp->heuristic;
@@ -131,17 +118,17 @@ bool MyRodPathFinder::checkEdge(Edge& edge, IQueryHandler& queryHandler) {
     if(edge.to->visited)
         return false;
 
-    checkedEdges++;
+    //checkedEdges++;
     if(checkConnectCPoint(edge.from,edge.to,queryHandler))
     {
         edge.to->last = edge.from;
         edge.to->distance = edge.distance - edge.to->heuristic;
         edge.to->visited = true;
-        edge.to->state = 2;
-        processedConfigurations++;
+        //edge.to->state = 2;
+        //processedConfigurations++;
         return true;
     }
-    forbiddenEdges++;
+    //forbiddenEdges++;
 
     return false;
 }
@@ -151,10 +138,8 @@ void MyRodPathFinder::addNeighbors(cPoint *current) {
     list<Point_3>::const_iterator it;
     Fuzzy_sphere rc(current->point3, RADIUS);
 
-
     tree.search(std::back_inserter(L), rc);
-
-    numOfEdges += L.size();
+    //numOfEdges += L.size();
     for (it = L.begin(); it != L.end(); it++) {
         cPoint* temp = &(cMap[*it]);
         addEdge(current, temp);
@@ -176,7 +161,7 @@ bool MyRodPathFinder::findPath(IQueryHandler &queryHandler) {
 
         cPoint* currentCpoint = currentEdge.to;
         if(cPointDistance(currentCpoint, refEndPt) < END_RADIUS) {
-            endEdgesChecked++;
+            //endEdgesChecked++;
             if (checkConnectCPoint(currentCpoint, refEndPt, queryHandler)) {
                 this->endCPoint.last = currentCpoint;
                 return true;
@@ -227,7 +212,7 @@ vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
             tempVector.push_back({temp->point, temp->rotation, CGAL::CLOCKWISE});
         else
             tempVector.push_back({temp->point, temp->rotation, CGAL::COUNTERCLOCKWISE});
-        temp->state=3;
+        //temp->state=3;
         temp = temp->last;
     }
     vector<Path::PathMovement> path;
@@ -280,7 +265,17 @@ void MyRodPathFinder::printStatistics() {
 
 }
 
-
+void MyRodPathFinder::exportCPoints()
+{
+    ofstream file;
+    file.open("points", ios_base::out | ios_base::trunc);
+    for (auto it=cMap.begin(); it!=cMap.end(); ++it)
+    {
+        file << it->second.state << " ";
+        file << CGAL::to_double(it->second.point.x()) << " " << CGAL::to_double(it->second.point.y()) <<
+             " " << it->second.rotation << endl;
+    }
+}
 
 
 

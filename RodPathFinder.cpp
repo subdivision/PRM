@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
     {
         cout << "ERROR: " << c << endl;
     }
-    myRodPathFinder.printStatistics();
-    myRodPathFinder.exportCPoints();
+    //myRodPathFinder.printStatistics();
+    //myRodPathFinder.exportCPoints();
 }
 
