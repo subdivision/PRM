@@ -20,7 +20,7 @@
 #define NUM_OF_POINTS_PER_SQUARE 100
 #define RADIUS 1.5
 #define STEP_QUERIES 100
-#define END_RADIUS 15
+#define END_RADIUS 10
 
 using namespace std;
 
@@ -35,12 +35,12 @@ struct CmpEdges
 struct cPoint{
 public:
     cPoint();
-    cPoint(Point_2 p, Point_2 e, double r);
+    cPoint(Point_2 p, double r);
     Point_2 point;
     Point_3 point3;
-    Point_2 endPoint;
+    double startX, startY;
     double rotation;
-    double distanceToEnd;
+    double heuristic=-1;
     double distance = 0;
     bool visited = false;
     int state = 0;
@@ -81,6 +81,7 @@ class MyRodPathFinder {
 
     void setDistributions(FT rodLength, vector<Polygon_2>& obstacles);
     double cPointDistance(cPoint *a, cPoint *b);
+    double heuristic(cPoint *cp);
     bool checkConnectCPoint(cPoint *a, cPoint *b, IQueryHandler& queryHandler);
 
     Point_2 endRodPoint(Point_2 a, double dir);

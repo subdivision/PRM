@@ -5,8 +5,11 @@
 #include "MyRodPathFinder.h"
 #include <queue>
 
-cPoint::cPoint(Point_2 p, Point_2 e, double r) :
-        point(p), point3(p[0],p[1],r), endPoint(e), rotation(r) {}
+cPoint::cPoint(Point_2 p, double r) :
+        point(p), point3(p.x(),p.y(),r), rotation(r) {
+    this->startX = CGAL::to_double(this->point.x());
+    this->startY = CGAL::to_double(this->point.y());
+}
 
 cPoint::cPoint() {
 }
@@ -35,8 +38,8 @@ vector<Path::PathMovement> MyRodPathFinder::getPath(FT rodLength, Point_2 rodSta
 
     re.seed(std::chrono::system_clock::now().time_since_epoch().count());
 
-    startCPoint = {rodStartPoint, endRodPoint(rodStartPoint, rodStartRotation), rodStartRotation};
-    endCPoint = {rodEndPoint, endRodPoint(rodEndPoint, rodEndRotation), rodEndRotation};
+    startCPoint = {rodStartPoint, rodStartRotation};
+    endCPoint = {rodEndPoint, rodEndRotation};
 
     setDistributions(rodLength, obstacles);
 
@@ -82,11 +85,10 @@ void MyRodPathFinder::setDistributions(FT rodLength, vector<Polygon_2> &obstacle
         if (iVrtx->point().y() > mostUp)
             mostUp = iVrtx->point().y();
     }
-    double addition = max(1.0, CGAL::to_double(d));
-    mostLeft -= addition;
-    mostRight += addition;
-    mostDown -= addition;
-    mostUp += addition;
+    mostLeft -= 0.5;
+    mostRight += 0.5;
+    mostDown -= 0.5;
+    mostUp += 0.5;
 
     int boxSize = int(CGAL::to_double((mostRight-mostLeft) * (mostUp-mostDown)));
     numberOfRandomConfiguration = NUM_OF_POINTS_PER_SQUARE*boxSize;
@@ -101,11 +103,9 @@ void MyRodPathFinder::setRandomPoints(IQueryHandler &queryHandler) {
         Point_2 p = {xUnif(re), yUnif(re)};
         double d = rUnif(re);
         if (queryHandler.isLegalConfiguration(p, d)) {
-            Point_3 p3(p[0],p[1],d);
-            tree.insert(p3);
-            cPoint cp = cPoint(p, endRodPoint(p, d), d);
-            cp.distanceToEnd = cPointDistance(&cp, &this->endCPoint);
-            cMap.insert(std::pair<Point_3, cPoint>(p3, cp));
+            cPoint cp = cPoint(p, d);
+            tree.insert(cp.point3);
+            cMap.insert(std::pair<Point_3, cPoint>(cp.point3, cp));
             legalConfiguration++;
         }
     }
@@ -119,8 +119,9 @@ void MyRodPathFinder::addEdge(cPoint *current, cPoint *temp) {
         temp->state = 1;
         discoveredConfigurations++;
     }
-
-    double newDistance = current->distance + cPointDistance(current, temp) + temp->distanceToEnd;
+    if(temp->heuristic < 0 )
+        temp->heuristic = heuristic(temp);
+    double newDistance = current->distance + cPointDistance(current, temp) + temp->heuristic;
 
     this->queue.push({current, temp, newDistance});
 
@@ -134,7 +135,7 @@ bool MyRodPathFinder::checkEdge(Edge& edge, IQueryHandler& queryHandler) {
     if(checkConnectCPoint(edge.from,edge.to,queryHandler))
     {
         edge.to->last = edge.from;
-        edge.to->distance = edge.distance - edge.from->distanceToEnd;
+        edge.to->distance = edge.distance - edge.to->heuristic;
         edge.to->visited = true;
         edge.to->state = 2;
         processedConfigurations++;
@@ -173,9 +174,8 @@ bool MyRodPathFinder::findPath(IQueryHandler &queryHandler) {
         if(!checkEdge(currentEdge,queryHandler))
             continue;
 
-        processedConfigurations++;
         cPoint* currentCpoint = currentEdge.to;
-        if(currentCpoint->distanceToEnd < END_RADIUS) {
+        if(cPointDistance(currentCpoint, refEndPt) < END_RADIUS) {
             endEdgesChecked++;
             if (checkConnectCPoint(currentCpoint, refEndPt, queryHandler)) {
                 this->endCPoint.last = currentCpoint;
@@ -240,15 +240,19 @@ vector<Path::PathMovement> MyRodPathFinder::fetchPath() {
 }
 
 double MyRodPathFinder::cPointDistance(cPoint *a, cPoint *b) {
-    double xdiff = CGAL::to_double(a->point.x()) - CGAL::to_double(b->point.x());
-    double ydiff = CGAL::to_double(a->point.y()) - CGAL::to_double(b->point.y());
+    double xdiff = a->startX - b->startX;
+    double ydiff = a->startY - b->startY;
+    double rdiff = a->rotation - b->rotation;
 
-    double xdiff2 = CGAL::to_double(a->endPoint.x()) - CGAL::to_double(b->endPoint.x());
-    double ydiff2 = CGAL::to_double(a->endPoint.y()) - CGAL::to_double(b->endPoint.y());
+    return xdiff*xdiff + ydiff*ydiff + rdiff*rdiff;
+}
 
- //   double rdiff = a->rotation - b->rotation;
+double MyRodPathFinder::heuristic(cPoint *cp) {
+    double xdiff = cp->startX - this->endCPoint.startX;
+    double ydiff = cp->startY - this->endCPoint.startY;
+    double rdiff = cp->rotation - this->endCPoint.rotation;
 
-    return xdiff*xdiff + ydiff*ydiff + xdiff2*xdiff2 + ydiff2*ydiff2;
+    return xdiff*xdiff + ydiff*ydiff + rdiff*rdiff;
 }
 
 Point_2 MyRodPathFinder::endRodPoint(Point_2 a, double dir) {
@@ -260,9 +264,9 @@ void MyRodPathFinder::printStatistics() {
     cout << "\n***** statistics *****\n";
     cout << "Configurations:\n";
     cout << "Number of random configurations - " << numberOfRandomConfiguration << endl;
-    cout << "Number of legal configuration - " << legalConfiguration << endl;
+    cout << "Number of legal configurations - " << legalConfiguration << endl;
     cout << "Number of discovered configurations - " << discoveredConfigurations << endl;
-    cout << "Number of processed configuration - " << processedConfigurations << endl;
+    cout << "Number of processed configurations - " << processedConfigurations << endl;
 
     cout << "Edges:\n";
     cout << "Number of edges discovered - " << numOfEdges << endl;
